@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(to right, #007fff, #a3c1ad);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      font-size: 1.2rem;
+    }
+
+    .btn {
+      margin-top: 2rem;
+      padding: 0.7rem 1.5rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      background-color: #66023c; /* Tyrian purple */
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .btn:hover {
+      background-color: #8b004d;
+    }
+  </style>
+</head>
+<body>
+  <h1>Welcome, Student!</h1>
+  <p>You’ve successfully logged in.</p>
+  <button class="btn" onclick="logout()">Logout</button>
+
+  <script>
+    function logout() {
+      // Optional: Firebase sign out
+      window.location.href = "index.html";
+    }
+  </script>
+</body>
+</html>

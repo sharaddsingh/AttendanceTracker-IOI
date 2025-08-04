@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Attendance App</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
+
+    * {
+      margin: 0px;
+      padding: 0px;
+      box-sizing: border-box;
+      font-family: "Open Sans", sans-serif;
+    }
+    .wrapper {
+  width: 400px;
+  border-radius: 15px;
+  padding: 40px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  transition: all 0.3s ease;
+}
+
+.wrapper:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+}
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      width: 100%;
+      padding: 0 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: url("https://cache.careers360.mobi/media/article_images/2023/7/29/PW_IOI_Front.jpg"), #000;
+      background-position: center;
+      background-size: cover;
+      z-index: -1;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: rgba(247, 245, 245, 0.6);
+      padding: 40px 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      width: 370px;
+      text-align: center;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      color: #5C5470;
+    }
+
+    select,
+    input,
+    button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+
+      border-radius: 10px;
+      /* border: 1.5px solid #5C5470; */
+      font-size: 15px;
+    }
+
+    button {
+      background-color: #000000;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+        font-family: 'Poppins', sans-serif;
+      border: none;
+      outline: none;
+    }
+
+    button:hover {
+      background-color: #f6f9fb;
+      color: #000000;
+
+    }
+
+    #message {
+      margin-top: 10px;
+      color: red;
+    }
+
+    #toggleLink {
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 13px;
+    }
+
+
+
+h2 {  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 1.7rem;
+  color: black;
+
+}
+input {
+  background-color: transparent !important;
+  color: black;
+  border: none;
+  outline: none;
+}
+
+/* Remove autofill background (Chrome & Edge) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
+  -webkit-text-fill-color: rgb(16, 1, 1) !important;
+  background-color: transparent !important;
+  caret-color: white;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Also force input appearance to be flat */
+input[type="email"],
+input[type="text"],
+input[type="password"] {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+}
+
+/* Input fields */
+.input-field {
+  position: relative;
+  border-bottom: 2px solid rgba(14, 0, 0, 0.3);
+  margin: 30px 0;
+}
+
+.input-field label {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  color: black;
+  font-size: 16px;
+  pointer-events: none;
+  transition: 0.3s ease;
+}
+
+
+
+.input-field input {
+  width: 100%;
+  height: 15px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  color: #000000;
+  padding: 0 10px;
+}
+
+.input-field input:focus ~ label,
+.input-field input:valid ~ label {
+  font-size: 0.9rem;
+  top: 10px;
+  transform: translateY(-150%);
+  color: black;
+}
+
+/* Forget section */
+.forget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 25px 0 35px 0;
+  color: black;
+}
+
+#remember {
+  accent-color: #ffdde1;
+}
+
+.forget label {
+  display: flex;
+  align-items: center;
+}
+
+.forget label p {
+  margin-left: 8px;
+}
+
+/* Links */
+.wrapper a {
+  color: #ffdde1;
+  text-decoration: none;
+}
+.wrapper a:hover {
+  text-decoration: underline;
+}
+
+.select_role{
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 10px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 15px;
+  background-color: white;
+  background-color: black;
+  color: white;
+}
+
+</style>
+</head>
+
+<body>
+  <div class="container wrapper">
+    <h2 id="formTitle">Sign Up</h2>
+<form action="#">
+    <select id="roleSelect" class="select_role" required>
+      <option value="" disabled selected>Select Role</option>
+      <option value="student" class="role1">Student</option>
+      <option value="faculty" class="role2">Faculty</option>
+    </select>
+
+   
+      <div class="input-field">
+        <input type="text" id="email"  required>
+        <label>Enter your email</label>
+      </div>
+        <div class="input-field">
+        <input type="password" id="password" required>
+        <label>Enter your password</label>
+      </div>
+
+    <button id="submitBtn">Sign Up</button>
+    <button id="googleBtn">Sign In with Google</button>
+</form>
+    <div id="toggleLink">Already have an account? Login here</div>
+    <div id="message"></div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAJAl0Y-vtu-edqDBiOUWZHLRuPpg2W7AY",
+      authDomain: "attendancetracker-f8461.firebaseapp.com",
+      projectId: "attendancetracker-f8461",
+      storageBucket: "attendancetracker-f8461.appspot.com",
+      messagingSenderId: "87952419692",
+      appId: "1:87952419692:web:6ca63cb53cc467be972149"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const roleSelect = document.getElementById("roleSelect");
+    const submitBtn = document.getElementById("submitBtn");
+    const toggleLink = document.getElementById("toggleLink");
+    const googleBtn = document.getElementById("googleBtn");
+    const formTitle = document.getElementById("formTitle");
+    const message = document.getElementById("message");
+
+    let isSignup = true;
+
+    toggleLink.onclick = () => {
+      isSignup = !isSignup;
+      formTitle.textContent = isSignup ? "Sign Up" : "Login";
+      submitBtn.textContent = isSignup ? "Sign Up" : "Login";
+      toggleLink.textContent = isSignup ?
+        "Already have an account? Login here" :
+        "Don't have an account? Sign up here";
+      message.textContent = "";
+    };
+
+    submitBtn.onclick = async () => {
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
+      const role = roleSelect.value;
+
+      if (!role) return alert("Please select your role first");
+
+      // Email domain check
+      const studentRegex = /@pwioi\.com$/i;
+      const facultyRegex = /@pw\.live$/i;
+      const validStudent = studentRegex.test(email);
+      const validFaculty = facultyRegex.test(email);
+
+      if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
+        alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+        return;
+      }
+
+      try {
+        if (isSignup) {
+          const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+
+          await db.collection("users").doc(user.uid).set({
+            email,
+            role,
+            createdAt: new Date()
+          });
+
+          await user.sendEmailVerification();
+          message.style.color = "green";
+          message.textContent = "Verification email sent!";
+          await auth.signOut();
+        } else {
+          const userCredential = await auth.signInWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+
+          if (!user.emailVerified) {
+            await auth.signOut();
+            message.textContent = "Please verify your email. Verification sent again.";
+            await user.sendEmailVerification();
+            return;
+          }
+
+          const doc = await db.collection("users").doc(user.uid).get();
+          const data = doc.data();
+          if (!doc.exists || data.role !== role) {
+            await auth.signOut();
+            return alert("Access denied for this role.");
+          }
+
+          redirectToDashboard(role);
+        }
+      } catch (error) {
+        message.style.color = "red";
+        message.textContent = error.message;
+      }
+    };
+
+    function redirectToDashboard(role) {
+      if (role === "student") {
+        window.location.href = "student-dashboard.html";
+      } else if (role === "faculty") {
+        window.location.href = "faculty-dashboard.html";
+      } else {
+        console.error("Invalid role:", role);
+      }
+    }
+
+    googleBtn.onclick = async () => {
+      const role = roleSelect.value;
+      if (!role) return alert("Please select your role first");
+
+      const provider = new firebase.auth.GoogleAuthProvider();
+
+      try {
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
+        const email = user.email;
+
+        // Email domain check
+        const studentRegex = /@pwioi\.com$/i;
+        const facultyRegex = /@pw\.live$/i;
+        const validStudent = studentRegex.test(email);
+        const validFaculty = facultyRegex.test(email);
+
+        if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
+          alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+          await auth.signOut();
+          return;
+        }
+
+        const docRef = db.collection("users").doc(user.uid);
+        const docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+          await docRef.set({
+            email,
+            role,
+            createdAt: new Date()
+          });
+        } else if (docSnap.data().role !== role) {
+          alert("Access denied: Role mismatch.");
+          await auth.signOut();
+          return;
+        }
+
+        redirectToDashboard(role);
+      } catch (error) {
+        message.style.color = "red";
+        message.textContent = error.message;
+      }
+    }
+  </script>
+
+</body>
+
+</html> 
