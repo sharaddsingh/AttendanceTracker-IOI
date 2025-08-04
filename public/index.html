@@ -1,89 +1,688 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+<html lang="en">
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/12.0.0/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/12.0.0/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/12.0.0/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Attendance App</title>
+  <style>
+    
+  @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
+  html{
+ height: auto;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Open Sans", sans-serif;
+  }
+
+
+
+  body {
+     overflow-x: hidden;
+  overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    min-height: 100dvh;
+    width: 100%;
+    padding: 20px;
+    font-family: 'Poppins', sans-serif;
+    position: relative;
+    z-index: 0;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100%;
+    background: url("https://cache.careers360.mobi/media/article_images/2023/7/29/PW_IOI_Front.jpg") center/cover no-repeat;
+    z-index: -1;
+  }
+.container.wrapper {
+  max-width: 95vw;
+  width: 400px;
+  margin: 0 auto;
+}
+  .wrapper {
+    width: 100%;
+    max-width: 360px;
+    border-radius: 15px;
+    padding: 25px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    transition: all 0.3s ease;
+  }
+
+  .wrapper:hover {
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+  }
+
+  .container {
+    background: rgba(247, 245, 245, 0.6);
+    padding: 25px 20px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+
+  h2 {
+    margin-bottom: 20px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 1.7rem;
+    color: black;
+  }
+
+  select,
+  input,
+  button {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  button {
+    background-color: #000000;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-family: 'Poppins', sans-serif;
+    border: none;
+    outline: none;
+  }
+
+  button:hover {
+    background-color: #f6f9fb;
+    color: #000000;
+  }
+
+  #message {
+    margin-top: 10px;
+    color: red;
+  }
+
+  #toggleLink {
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: 13px;
+  }
+
+  input {
+    background-color: transparent !important;
+    color: black;
+    border: none;
+    outline: none;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
+    -webkit-text-fill-color: rgb(16, 1, 1) !important;
+    background-color: transparent !important;
+    caret-color: white;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  input[type="email"],
+  input[type="text"],
+  input[type="password"] {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+  }
+
+  .input-field {
+    position: relative;
+    border-bottom: 2px solid rgba(14, 0, 0, 0.3);
+    margin: 20px 0;
+  }
+
+  .input-field input {
+    width: 100%;
+    padding: 10px 0 5px 0;
+    font-size: 16px;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: black;
+  }
+
+  .input-field label {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    color: black;
+    font-size: 16px;
+    pointer-events: none;
+    transition: 0.3s ease;
+    padding-left: 10px;
+  }
+
+  .input-field input:focus ~ label,
+  .input-field input:valid ~ label {
+    font-size: 0.9rem;
+    top: 0;
+    transform: translateY(-30%);
+    color: black;
+  }
+
+  .forget {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 25px 0 35px 0;
+    color: black;
+  }
+
+  #remember {
+    accent-color: #ffdde1;
+  }
+
+  .forget label {
+    display: flex;
+    align-items: center;
+  }
+
+  .forget label p {
+    margin-left: 8px;
+  }
+
+  .wrapper a {
+    color: #ffdde1;
+    text-decoration: none;
+  }
+
+  .wrapper a:hover {
+    text-decoration: underline;
+  }
+
+  .select_role {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 15px;
+    background-color: black;
+    color: white;
+    margin-bottom: 0px;
+  }
+  form {
+  width: 100%;
+}
+
+  /* Enhanced Modal Styles for Consistency */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+  }
+
+  .modal-content {
+    background: linear-gradient(to right, #a3c1ad, #007fff);
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 350px;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal h3 {
+    color: #fff;
+    margin-bottom: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.6rem;
+  }
+
+  .modal p {
+    color: #f8f8f8;
+    margin-bottom: 20px;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  .modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .modal-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+    transition: background 0.3s ease;
+  }
+
+  .modal-btn.primary {
+    background-color: #66023c;
+    color: white;
+  }
+
+  .modal-btn.primary:hover {
+    background-color: #8b004d;
+  }
+
+  .modal-btn.secondary {
+    background-color: #fff;
+    color: #333;
+  }
+
+  .modal-btn.secondary:hover {
+    background-color: #eee;
+  }
+
+  .modal-input {
+    width: 100%;
+    padding: 8px 12px;
+    margin: 10px 0 15px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+
+  .modal-input:focus {
+    outline: none;
+    border-color: #66023c;
+  }
+
+  @media (max-width: 480px) {
+     .container.wrapper {
+    padding: 20px 15px;
+    width: 100%;
+  }
+form {
+  width: 100%;
+}
+  .select_role,
+  input,
+  button {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+    .container {
+      max-width: 95%;
+      padding: 20px 15px;
+    }
+
+    .wrapper {
+      padding: 20px;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+    }
+
+    button,
+    input {
+      font-size: 14px;
+      padding: 10px;
+    }
+
+    .select_role {
+      font-size: 15px;
+      padding: 12px;
+    }
+
+    .input-field label {
+      font-size: 14px;
+    }
+  }
+
+
+  </style>
+</head>
+
+<body>
+  <div class="container wrapper">
+    <h2 id="formTitle">Sign Up</h2>
+
+    <select id="roleSelect" class="select_role" required>
+      <option value="" disabled selected>Select Role</option>
+      <option value="student" class="role1">Student</option>
+      <option value="faculty" class="role2">Faculty</option>
+    </select>
+
+   
+      <div class="input-field">
+        <input type="text" id="email"  required>
+        <label>Enter your email</label>
+      </div>
+        <div class="input-field">
+        <input type="password" id="password" required>
+        <label>Enter your password</label>
+      </div>
+
+    <button id="submitBtn">Sign Up</button>
+    <button id="googleBtn">Sign In with Google</button>
+    <div id="toggleLink">Already have an account? Login here</div>
+    <div id="forgotPasswordLink" style="display: none; cursor: pointer; text-decoration: underline; font-size: 12px; color: #666; margin-top: 5px;">Forgot Password?</div>
+    <div id="message"></div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAJAl0Y-vtu-edqDBiOUWZHLRuPpg2W7AY",
+    authDomain: "attendancetracker-f8461.firebaseapp.com",
+    projectId: "attendancetracker-f8461",
+    storageBucket: "attendancetracker-f8461.appspot.com",
+    messagingSenderId: "87952419692",
+    appId: "1:87952419692:web:6ca63cb53cc467be972149"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  const emailInput = document.getElementById("email");
+  const passwordInput = document.getElementById("password");
+  const roleSelect = document.getElementById("roleSelect");
+  const submitBtn = document.getElementById("submitBtn");
+  const toggleLink = document.getElementById("toggleLink");
+  const googleBtn = document.getElementById("googleBtn");
+  const formTitle = document.getElementById("formTitle");
+  const message = document.getElementById("message");
+  const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+
+  let isSignup = true;
+
+  toggleLink.onclick = () => {
+    isSignup = !isSignup;
+    formTitle.textContent = isSignup ? "Sign Up" : "Login";
+    submitBtn.textContent = isSignup ? "Sign Up" : "Login";
+    toggleLink.textContent = isSignup ?
+      "Already have an account? Login here" :
+      "Don't have an account? Sign up here";
+    
+    // Show/hide forgot password link
+    forgotPasswordLink.style.display = isSignup ? "none" : "block";
+    
+    message.textContent = "";
+  };
+
+  // Forgot Password functionality
+  forgotPasswordLink.onclick = async () => {
+    const email = emailInput.value.trim();
+    const role = roleSelect.value;
+
+    if (!email) {
+      showModal('Email Required', 'Please enter your email address first.');
+      return;
+    }
+
+    if (!role) {
+      showModal('Role Required', 'Please select your role first.');
+      return;
+    }
+
+    // Validate email format based on role
+    const studentRegex = /@pwioi\.com$/i;
+    const facultyRegex = /@pw\.live$/i;
+    const validStudent = studentRegex.test(email);
+    const validFaculty = facultyRegex.test(email);
+
+    if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
+      alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+      return;
+    }
+
+    try {
+      await auth.sendPasswordResetEmail(email);
+      message.style.color = "green";
+      message.textContent = "Password reset email sent! Check your inbox and follow the instructions to reset your password.";
+    } catch (error) {
+      message.style.color = "red";
+      
+      if (error.code === 'auth/user-not-found') {
+        message.textContent = "No account found with this email. Please check your email or sign up first.";
+      } else if (error.code === 'auth/invalid-email') {
+        message.textContent = "Invalid email address. Please check and try again.";
+      } else if (error.code === 'auth/too-many-requests') {
+        message.textContent = "Too many password reset attempts. Please wait before trying again.";
+      } else {
+        message.textContent = `Error: ${error.message}`;
       }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
-    </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
+    }
+  };
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+submitBtn.onclick = async () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
+    const role = roleSelect.value;
 
+    if (!role) return alert("Please select your role first");
+
+    const studentRegex = /@pwioi\.com$/i;
+    const facultyRegex = /@pw\.live$/i;
+    const validStudent = studentRegex.test(email);
+    const validFaculty = facultyRegex.test(email);
+
+    if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
+      alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+      return;
+    }
+
+    try {
+      if (isSignup) {
         try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
+          const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+
+          await db.collection("users").doc(user.uid).set({
+            email,
+            role,
+            createdAt: new Date()
+          });
+
+          await user.sendEmailVerification();
+          message.style.color = "green";
+          message.textContent = "Account created successfully! Please check your email and verify your account, then login to continue.";
+
+          await auth.signOut();
+          
+          // Switch to login mode after successful signup
+          setTimeout(() => {
+            isSignup = false;
+            formTitle.textContent = "Login";
+            submitBtn.textContent = "Login";
+            toggleLink.textContent = "Don't have an account? Sign up here";
+            forgotPasswordLink.style.display = "block";
+            message.textContent = "";
+          }, 3000);
+        } catch (signupError) {
+          if (signupError.code === 'auth/email-already-in-use') {
+            message.textContent = "Email already in use with Google. Please log in instead.";
+          } else {
+            message.style.color = "red";
+            message.textContent = signupError.message;
+          }
         }
-      });
-    </script>
-  </body>
-</html>
+      } else {
+        try {
+          const userCredential = await auth.signInWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+
+          if (!user.emailVerified) {
+            await user.sendEmailVerification();
+            await auth.signOut();
+            message.textContent = "Please verify your email. Verification sent again.";
+            return;
+          }
+
+          const doc = await db.collection("users").doc(user.uid).get();
+          const data = doc.data();
+          if (!doc.exists || data.role !== role) {
+            await auth.signOut();
+            return alert("Access denied for this role.");
+          }
+
+          console.log('Login successful, redirecting to:', role);
+          redirectToDashboard(role);
+        } catch (loginError) {
+          if (loginError.code === 'auth/wrong-password') {
+            message.style.color = "red";
+            message.textContent = "Incorrect password. Please try again or use 'Forgot Password' to reset it.";
+          } else if (loginError.code === 'auth/user-not-found') {
+            message.style.color = "red";
+            message.textContent = "No account found with this email. Please check your email or sign up first.";
+          } else if (loginError.code === 'auth/invalid-credential') {
+            message.style.color = "red";
+            message.textContent = "Invalid login credentials. This account may have been created with Google sign-in only. Try using Google sign-in or use 'Forgot Password' to set up email login.";
+          } else if (loginError.code === 'auth/too-many-requests') {
+            message.style.color = "red";
+            message.textContent = "Too many failed login attempts. Please wait a moment before trying again.";
+          } else {
+            message.style.color = "red";
+            message.textContent = loginError.message;
+          }
+        }
+      }
+    } catch (error) {
+      showModal('An error occurred', error.message);
+    }
+  }
+
+  // Utility function to show modal messages
+  function showModal(title, message) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-content">
+        <h3>${title}</h3>
+        <p>${message}</p>
+        <div class="modal-buttons">
+          <button class="modal-btn primary" onclick="this.closest('.modal').remove()">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+  }
+
+  function redirectToDashboard(role) {
+    console.log('redirectToDashboard called with role:', role);
+    if (role === "student") {
+      console.log('Redirecting to student dashboard');
+      window.location.href = "student-dashboard.html";
+    } else if (role === "faculty") {
+      console.log('Redirecting to faculty dashboard');
+      window.location.href = "faculty-dashboard.html";
+    } else {
+      console.error("Invalid role:", role);
+    }
+  }
+
+  googleBtn.onclick = async () => {
+    const role = roleSelect.value;
+    if (!role) return alert("Please select your role first");
+
+    const provider = new firebase.auth.GoogleAuthProvider();
+
+    try {
+      const result = await auth.signInWithPopup(provider);
+      const user = result.user;
+      const email = user.email;
+
+      const studentRegex = /@pwioi\.com$/i;
+      const facultyRegex = /@pw\.live$/i;
+      const validStudent = studentRegex.test(email);
+      const validFaculty = facultyRegex.test(email);
+
+      if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
+        alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+        await auth.signOut();
+        return;
+      }
+
+      const docRef = db.collection("users").doc(user.uid);
+      const docSnap = await docRef.get();
+
+      if (!docSnap.exists) {
+        await docRef.set({
+          email,
+          role,
+          createdAt: new Date()
+        });
+      } else if (docSnap.data().role !== role) {
+        alert("Access denied: Role mismatch.");
+        await auth.signOut();
+        return;
+      }
+
+      // 🔐 Check if password login is linked
+      const hasPassword = user.providerData.some(p => p.providerId === "password");
+
+      if (!hasPassword) {
+        const setPass = confirm("Do you want to set a password for future email login?");
+        if (setPass) {
+          const newPassword = prompt("Enter a new password (min 6 characters):");
+          if (newPassword && newPassword.length >= 6) {
+            const credential = firebase.auth.EmailAuthProvider.credential(email, newPassword);
+            try {
+              await user.linkWithCredential(credential);
+              alert("Password set successfully. You can now log in with email and password.");
+            } catch (err) {
+              console.error("Linking failed:", err);
+              alert("Linking failed. Try again later.");
+            }
+          } else {
+            alert("Password must be at least 6 characters.");
+          }
+        }
+      }
+
+      redirectToDashboard(role);
+    } catch (error) {
+      message.style.color = "red";
+      message.textContent = error.message;
+    }
+  };
+</script>
+
+
+</body>
+
+</html> 
