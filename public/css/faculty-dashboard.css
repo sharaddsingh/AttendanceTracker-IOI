@@ -1,0 +1,237 @@
+/*
+==================================================
+FACULTY DASHBOARD CSS STYLESHEET
+==================================================
+Author: Attendance Tracker System
+Description: Comprehensive styling for faculty dashboard
+Last Updated: 2024
+==================================================
+*/
+
+/* ===== RESET AND BASE STYLES ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+}
+
+body {
+  color: #333;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+}
+
+/* ===== LAYOUT COMPONENTS ===== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.dashboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.section {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  flex: 1;
+  min-width: 300px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+}
+
+.action-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  transition: background 0.3s ease;
+}
+
+.action-btn:hover {
+  background: #0056b3;
+}
+
+/* ===== QR CODE STYLES ===== */
+.qr-form .form-group {
+  margin-bottom: 15px;
+}
+
+.generate-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.3s ease;
+}
+
+.generate-btn:hover {
+  background: #218838;
+}
+
+.qr-info {
+  margin-top: 15px;
+  text-align: left;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.qr-actions button {
+  margin-right: 10px;
+}
+
+/* ===== ATTENDANCE STYLES ===== */
+.attendance-controls,
+.bulk-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.save-attendance-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 5px;
+  float: right;
+  transition: background 0.3s ease;
+}
+
+.save-attendance-btn:hover {
+  background: #0069d9;
+}
+
+/* ===== REPORT STYLES ===== */
+.report-summary {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+}
+
+.summary-card {
+  text-align: center;
+}
+
+.summary-value {
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+/* ===== STUDENT MANAGEMENT STYLES ===== */
+.student-search {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.students-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+/* ===== LEAVE REQUEST STYLES ===== */
+.leave-request-item {
+  background: #f8f8f8;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.leave-info {
+  max-width: 70%;
+}
+
+.leave-actions button {
+  margin-left: 10px;
+}
+
+.approve-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+.approve-btn:hover {
+  background: #218838;
+}
+
+.reject-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+
+.reject-btn:hover {
+  background: #c82333;
+}
+
+/* ===== SCHEDULE STYLES ===== */
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.schedule-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f1f1f1;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.schedule-status.completed {
+  color: #28a745;
+}
+
+.schedule-status.ongoing {
+  color: #ffc107;
+}
+
+.schedule-status.upcoming {
+  color: #007bff;
+}
+
+/* ===== MEDIA QUERIES ===== */
+@media screen and (max-width: 768px) {
+  .quick-actions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  }
+}
+
+/* 
+==================================================
+END OF FACULTY DASHBOARD CSS 
+==================================================
+*/

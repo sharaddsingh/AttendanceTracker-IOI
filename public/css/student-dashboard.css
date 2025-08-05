@@ -1,0 +1,453 @@
+/*
+==================================================
+STUDENT DASHBOARD CSS STYLESHEET
+==================================================
+Author: Attendance Tracker System
+Description: Comprehensive styling for student dashboard
+Last Updated: 2024
+==================================================
+*/
+
+/* ===== RESET AND BASE STYLES ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+}
+
+body {
+  background: linear-gradient(135deg, #f8f9fa, #ffffff);
+  color: #333333;
+  padding: 20px;
+}
+
+/* ===== LAYOUT COMPONENTS ===== */
+.dashboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.section {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  border-radius: 12px;
+  flex: 1 1 300px;
+  min-width: 300px;
+}
+
+/* ===== TYPOGRAPHY ===== */
+h2 {
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+/* ===== CHART STYLES ===== */
+canvas {
+  width: 100% !important;
+  height: 300px !important;
+}
+
+/* ===== WARNING AND ALERT STYLES ===== */
+.warning {
+  background: radial-gradient(circle, #ff4d4d, #cc0000);
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  color: white;
+}
+
+/* ===== FORM STYLES ===== */
+.leave-form input,
+.leave-form select,
+.leave-form textarea {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  background: #fff;
+  color: #333;
+}
+
+.leave-form input:focus,
+.leave-form select:focus,
+.leave-form textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.leave-form button {
+  background: linear-gradient(to right, #007bff, #0056b3);
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.leave-form button:hover {
+  background: linear-gradient(to right, #0056b3, #004085);
+  transform: translateY(-1px);
+}
+
+/* ===== MOBILE SCAN BUTTON ===== */
+.mobile-scan {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #007bff;
+  color: white;
+  border: 2px solid #007bff;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  z-index: 100;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+}
+
+.mobile-scan:hover {
+  transform: scale(1.1);
+  background: #0056b3;
+  border-color: #0056b3;
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+}
+
+/* ===== WELCOME MESSAGE STYLES ===== */
+.welcome-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+  color: #333;
+}
+
+.welcome-message i {
+  color: #007bff;
+}
+
+#studentName {
+  font-weight: 600;
+}
+
+/* ===== HEADER STYLES ===== */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  border-bottom: 1px solid #e9ecef;
+  margin-bottom: 20px;
+}
+
+.theme-toggle {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  color: #333;
+  padding: 10px 15px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+/* ===== LOADING STATES ===== */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100px;
+}
+
+.spinner {
+  border: 3px solid #e9ecef;
+  border-top: 3px solid #007bff;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+/* ===== PROFILE PHOTO STYLES ===== */
+.profile-photo-section {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.profile-photo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #ddd;
+  margin-bottom: 10px;
+}
+
+.photo-upload {
+  display: none;
+}
+
+.photo-upload-label {
+  display: inline-block;
+  padding: 5px 15px;
+  background: #007bff;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ===== LEAVE BALANCE INDICATOR ===== */
+.leave-balance {
+  background: rgba(23, 162, 184, 0.1);
+  border: 1px solid #17a2b8;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+/* ===== NOTIFICATION STYLES ===== */
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #dc3545;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.notification-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  border-left: 3px solid #007bff;
+}
+
+.notification-item small {
+  margin-left: auto;
+  color: #999;
+  font-size: 11px;
+}
+
+/* No notifications state */
+.no-notifications {
+  text-align: center;
+  padding: 30px 20px;
+  color: #999;
+}
+
+.no-notifications i {
+  margin-bottom: 10px;
+  opacity: 0.5;
+}
+
+.no-notifications p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ===== TABLE STYLES ===== */
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.schedule-table th,
+.schedule-table td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.schedule-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.low-attendance {
+  color: #ffc107;
+  font-weight: bold;
+}
+
+/* ===== SUBJECT TAGS ===== */
+.subject-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+}
+
+.subject-tag.java { background: #e74c3c; }
+.subject-tag.dsa { background: #3498db; }
+.subject-tag.dbms { background: #2ecc71; }
+.subject-tag.excel { background: #f39c12; }
+.subject-tag.javascript { background: #f1c40f; }
+.subject-tag.masterclass { background: #9b59b6; }
+.subject-tag.python { background: #27ae60; }
+
+/* ===== STATS AND CARDS ===== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border-left: 4px solid #007bff;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* ===== PROGRESS BARS ===== */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  transition: width 0.3s ease;
+}
+
+/* ===== ACHIEVEMENT BADGES ===== */
+.achievement-badge {
+  display: inline-block;
+  background: linear-gradient(45deg, #ffd700, #ffed4e);
+  color: #333;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: bold;
+  margin: 2px;
+}
+
+/* ===== QUICK ACTIONS ===== */
+.quick-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+.quick-action-btn {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.quick-action-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* ===== POPUP STYLES ===== */
+.profile-popup {
+  display: none;
+  position: fixed;
+  background: rgba(0, 0, 0, 0.8);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+  z-index: 101;
+}
+
+.profile-content {
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 90%;
+}
+
+.profile-content h3 {
+  margin-bottom: 15px;
+}
+
+#successTick {
+  font-size: 36px;
+  color: green;
+}
+
+/* ===== MEDIA QUERIES ===== */
+@media screen and (max-width: 768px) {
+  .mobile-scan {
+    display: flex;
+  }
+}
+
+/* 
+==================================================
+END OF STUDENT DASHBOARD CSS
+==================================================
+*/

@@ -1,11 +1,344 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Faculty Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-storage-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/common-utils.js"></script>
+  
+  <!-- Define logout function immediately -->
+  <script>
+    // Simple and efficient logout function for faculty
+    window.logout = async function() {
+      console.log('Faculty logout initiated');
+      
+      try {
+        // Clear all local data
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear any cached faculty data
+        if (typeof window.facultyCache !== 'undefined') {
+          window.facultyCache = null;
+        }
+        
+        // Sign out from Firebase if available
+        if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+          await firebase.auth().signOut();
+          console.log('Firebase signout successful');
+        }
+        
+        // Show success message
+        alert('Logged out successfully!');
+        
+        // Redirect to login page
+        window.location.href = 'index.html';
+        
+      } catch (error) {
+        console.error('Logout error:', error);
+        // Force cleanup and redirect even on error
+        localStorage.clear();
+        sessionStorage.clear();
+        alert('Logout completed. Redirecting...');
+        setTimeout(() => window.location.href = 'index.html', 500);
+      }
+    };
+    
+    console.log('Faculty logout function initialized');
+  </script>
 </head>
+
 <body>
-  <div>hello everyone, mark your attendance</div>
+  <!-- Header with logout -->
+  <div class="header">
+    <div>
+      <h1><i class="fas fa-chalkboard-teacher"></i> Faculty Dashboard</h1>
+    </div>
+    <div>
+      <button class="theme-toggle" onclick="logout()" style="margin-left: 10px;">
+        <i class="fas fa-sign-out-alt"></i>
+        Logout
+      </button>
+    </div>
+  </div>
+
+  <div class="dashboard">
+    <!-- Quick Actions -->
+    <div class="section">
+      <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
+      <div class="quick-actions-grid">
+        <button class="action-btn generate-qr" onclick="generateAttendanceQR()">
+          <i class="fas fa-qrcode"></i>
+          <span>Generate QR Code</span>
+        </button>
+        <button class="action-btn manual-attendance" onclick="showManualAttendance()">
+          <i class="fas fa-list-check"></i>
+          <span>Manual Attendance</span>
+        </button>
+        <button class="action-btn view-reports" onclick="showReports()">
+          <i class="fas fa-chart-bar"></i>
+          <span>View Reports</span>
+        </button>
+        <button class="action-btn manage-students" onclick="showStudentList()">
+          <i class="fas fa-users"></i>
+          <span>Manage Students</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- QR Code Generation Section -->
+    <div class="section" id="qrSection" style="display: none;">
+      <h2><i class="fas fa-qrcode"></i> Generate Attendance QR Code</h2>
+      <div class="qr-form">
+        <div class="form-group">
+          <label for="subjectSelect">Subject:</label>
+          <select id="subjectSelect" required>
+            <option value="">Select Subject</option>
+            <option value="JAVA">JAVA</option>
+            <option value="DSA">Data Structures & Algorithms</option>
+            <option value="DBMS">Database Management System</option>
+            <option value="EXCEL">Excel</option>
+            <option value="JAVASCRIPT">JavaScript</option>
+            <option value="MASTERCLASS">Masterclass</option>
+            <option value="PYTHON">Python</option>
+            <option value="BUSINESS COMMUNICATION">Business Communication</option>
+            <option value="CRITICAL COMMUNICATION">Critical Communication</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="sessionDate">Session Date:</label>
+          <input type="date" id="sessionDate" required>
+        </div>
+        <div class="form-group">
+          <label for="sessionTime">Session Time:</label>
+          <input type="time" id="sessionTime" required>
+        </div>
+        <div class="form-group">
+          <label for="duration">Duration (minutes):</label>
+          <input type="number" id="duration" value="60" min="15" max="240" required>
+        </div>
+        <button onclick="generateQRCode()" class="generate-btn">
+          <i class="fas fa-magic"></i> Generate QR Code
+        </button>
+      </div>
+      
+      <div id="qrDisplay" style="display: none;">
+        <h3>Attendance QR Code</h3>
+        <div id="qrcode"></div>
+        <div class="qr-info">
+          <p><strong>Subject:</strong> <span id="qrSubject"></span></p>
+          <p><strong>Date:</strong> <span id="qrDate"></span></p>
+          <p><strong>Time:</strong> <span id="qrTime"></span></p>
+          <p><strong>Valid for:</strong> <span id="qrDuration"></span> minutes</p>
+        </div>
+        <div class="qr-actions">
+          <button onclick="downloadQR()"><i class="fas fa-download"></i> Download QR</button>
+          <button onclick="shareQR()"><i class="fas fa-share"></i> Share QR</button>
+          <button onclick="resetQR()"><i class="fas fa-refresh"></i> Generate New</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Attendance Section -->
+    <div class="section" id="manualAttendanceSection" style="display: none;">
+      <h2><i class="fas fa-list-check"></i> Manual Attendance</h2>
+      <div class="attendance-controls">
+        <select id="attendanceSubject">
+          <option value="">Select Subject</option>
+          <option value="JAVA">JAVA</option>
+          <option value="DSA">Data Structures & Algorithms</option>
+          <option value="DBMS">Database Management System</option>
+          <option value="EXCEL">Excel</option>
+          <option value="JAVASCRIPT">JavaScript</option>
+          <option value="MASTERCLASS">Masterclass</option>
+          <option value="PYTHON">Python</option>
+          <option value="BUSINESS COMMUNICATION">Business Communication</option>
+          <option value="CRITICAL COMMUNICATION">Critical Communication</option>
+        </select>
+        <input type="date" id="attendanceDate">
+        <button onclick="loadStudentList()"><i class="fas fa-search"></i> Load Students</button>
+      </div>
+      
+      <div id="studentAttendanceList" style="display: none;">
+        <div class="attendance-header">
+          <h3>Mark Attendance</h3>
+          <div class="bulk-actions">
+            <button onclick="markAllPresent()"><i class="fas fa-check-circle"></i> Mark All Present</button>
+            <button onclick="markAllAbsent()"><i class="fas fa-times-circle"></i> Mark All Absent</button>
+          </div>
+        </div>
+        <div id="studentList"></div>
+        <button onclick="saveAttendance()" class="save-attendance-btn">
+          <i class="fas fa-save"></i> Save Attendance
+        </button>
+      </div>
+    </div>
+
+    <!-- Reports Section -->
+    <div class="section" id="reportsSection" style="display: none;">
+      <h2><i class="fas fa-chart-bar"></i> Attendance Reports</h2>
+      <div class="report-filters">
+        <select id="reportSubject">
+          <option value="">All Subjects</option>
+          <option value="JAVA">JAVA</option>
+          <option value="DSA">Data Structures & Algorithms</option>
+          <option value="DBMS">Database Management System</option>
+          <option value="EXCEL">Excel</option>
+          <option value="JAVASCRIPT">JavaScript</option>
+          <option value="MASTERCLASS">Masterclass</option>
+          <option value="PYTHON">Python</option>
+          <option value="BUSINESS COMMUNICATION">Business Communication</option>
+          <option value="CRITICAL COMMUNICATION">Critical Communication</option>
+        </select>
+        <input type="date" id="reportFromDate">
+        <input type="date" id="reportToDate">
+        <button onclick="generateReport()"><i class="fas fa-chart-line"></i> Generate Report</button>
+      </div>
+      
+      <div id="reportResults" style="display: none;">
+        <div class="report-summary">
+          <div class="summary-card">
+            <div class="summary-value" id="totalClasses">0</div>
+            <div class="summary-label">Total Classes</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value" id="totalStudents">0</div>
+            <div class="summary-label">Total Students</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value" id="avgAttendance">0%</div>
+            <div class="summary-label">Average Attendance</div>
+          </div>
+        </div>
+        
+        <div class="chart-container">
+          <canvas id="attendanceChart"></canvas>
+        </div>
+        
+        <div class="report-table">
+          <table id="attendanceReportTable">
+            <thead>
+              <tr>
+                <th>Student Name</th>
+                <th>Registration No.</th>
+                <th>Classes Attended</th>
+                <th>Total Classes</th>
+                <th>Attendance %</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody">
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="report-actions">
+          <button onclick="exportReport()"><i class="fas fa-file-excel"></i> Export to Excel</button>
+          <button onclick="downloadReportPDF()"><i class="fas fa-file-pdf"></i> Download PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Student Management Section -->
+    <div class="section" id="studentManagementSection" style="display: none;">
+      <h2><i class="fas fa-users"></i> Student Management</h2>
+      <div class="student-search">
+        <input type="text" id="studentSearchInput" placeholder="Search students by name or registration number...">
+        <button onclick="searchStudents()"><i class="fas fa-search"></i> Search</button>
+      </div>
+      
+      <div id="studentResults">
+        <div class="students-grid" id="studentsGrid">
+          <!-- Student cards will be populated here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Leave Requests Section -->
+    <div class="section">
+      <h2><i class="fas fa-file-alt"></i> Leave Requests</h2>
+      <div id="leaveRequestsList">
+        <div class="leave-request-item pending">
+          <div class="leave-info">
+            <h4>John Doe (REG001)</h4>
+            <p><strong>Subject:</strong> JAVA</p>
+            <p><strong>Date:</strong> 2024-01-20</p>
+            <p><strong>Periods:</strong> 2</p>
+            <p><strong>Reason:</strong> Medical appointment</p>
+          </div>
+          <div class="leave-actions">
+            <button class="approve-btn" onclick="approveLeave('req1')">
+              <i class="fas fa-check"></i> Approve
+            </button>
+            <button class="reject-btn" onclick="rejectLeave('req1')">
+              <i class="fas fa-times"></i> Reject
+            </button>
+          </div>
+        </div>
+        
+        <div class="leave-request-item pending">
+          <div class="leave-info">
+            <h4>Jane Smith (REG002)</h4>
+            <p><strong>Subject:</strong> DSA</p>
+            <p><strong>Date:</strong> 2024-01-22</p>
+            <p><strong>Periods:</strong> 1</p>
+            <p><strong>Reason:</strong> Family emergency</p>
+          </div>
+          <div class="leave-actions">
+            <button class="approve-btn" onclick="approveLeave('req2')">
+              <i class="fas fa-check"></i> Approve
+            </button>
+            <button class="reject-btn" onclick="rejectLeave('req2')">
+              <i class="fas fa-times"></i> Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Class Schedule -->
+    <div class="section">
+      <h2><i class="fas fa-calendar-alt"></i> Today's Schedule</h2>
+      <div class="schedule-list">
+        <div class="schedule-item active">
+          <div class="schedule-time">09:00 - 10:00</div>
+          <div class="schedule-subject">JAVA Programming</div>
+          <div class="schedule-batch">Batch 24B1</div>
+          <div class="schedule-status completed">Completed</div>
+        </div>
+        
+        <div class="schedule-item current">
+          <div class="schedule-time">10:15 - 11:15</div>
+          <div class="schedule-subject">Data Structures</div>
+          <div class="schedule-batch">Batch 24B2</div>
+          <div class="schedule-status ongoing">Ongoing</div>
+        </div>
+        
+        <div class="schedule-item">
+          <div class="schedule-time">11:30 - 12:30</div>
+          <div class="schedule-subject">Database Management</div>
+          <div class="schedule-batch">Batch 23B1</div>
+          <div class="schedule-status upcoming">Upcoming</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Link external CSS and JavaScript files -->
+  <link rel="stylesheet" href="css/faculty-dashboard.css">
+  <script src="js/faculty-dashboard.js"></script>
+  
+
 </body>
+
 </html>
