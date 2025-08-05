@@ -15,18 +15,8 @@ STUDENT DASHBOARD JAVASCRIPT - CLEANED VERSION
 */
 
 /* ===== ATTENDANCE DATA & CHART FUNCTIONS ===== */
-// Attendance Data with demo values (few months data)
-let subjectData = {
-  JAVA: 84,
-  DSA: 76,
-  DBMS: 88,
-  EXCEL: 74,
-  JAVASCRIPT: 92,
-  MASTERCLASS: 71,
-  PYTHON: 90,
-  "BUSINESS COMMUNICATION": 88,
-  "CRITICAL COMMUNICATION": 87
-};
+// Attendance Data - will be populated from Firebase
+let subjectData = {};
 
 // Function to fetch real-time attendance data
 function fetchAttendanceData() {
@@ -43,11 +33,18 @@ function fetchAttendanceData() {
     });
 }
 
-// Show low attendance warning if below 75% after data fetch
+// Show low attendance warning if below 75% and data is available
 function showLowAttendanceWarnings() {
+  // First, ensure there is data to process
+  if (!subjectData || Object.keys(subjectData).length === 0) {
+    document.getElementById("lowAttendanceWarning").style.display = "none";
+    return;
+  }
+
   const lowSubjects = Object.entries(subjectData).filter(([_, val]) => val < 75);
   const warningDiv = document.getElementById("lowAttendanceWarning");
-  if (lowSubjects.length) {
+
+  if (lowSubjects.length > 0) {
     warningDiv.style.display = "block";
     warningDiv.innerText = `Warning: Low attendance in ${lowSubjects.map(([sub]) => sub).join(", ")}`;
   } else {
@@ -263,13 +260,57 @@ function changeTodayAttendance(classId) {
 /* ===== FIREBASE SERVICES (from firebase-config.js) ===== */
 // Firebase services are initialized in firebase-config.js
 
-// Firebase authentication state listener
+// Fetch today's attendance from Firebase
+async function fetchTodayAttendance(user) {
+  const todayAttendanceList = document.getElementById('todayAttendanceList');
+  const noTodayAttendance = document.getElementById('noTodayAttendance');
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  try {
+    const attendanceRef = db.collection('attendances')
+      .where('userId', '==', user.uid)
+      .where('date', '==', today);
+
+    const snapshot = await attendanceRef.get();
+
+    if (snapshot.empty) {
+      noTodayAttendance.style.display = 'block';
+      todayAttendanceList.innerHTML = ''; // Clear existing entries
+      return;
+    }
+
+    noTodayAttendance.style.display = 'none';
+    todayAttendanceList.innerHTML = ''; // Clear existing entries
+
+    snapshot.forEach(doc => {
+      const { subject, status } = doc.data();
+      const statusText = status === 'present' ? 'Present' : 'Absent';
+      const statusColor = status === 'present' ? '#28a745' : '#dc3545';
+      
+      const attendanceItem = `
+        <div class="attendance-item" style="border-left-color: ${statusColor};">
+          <span class="subject-name">${subject}</span>
+          <span class="attendance-status" style="color: ${statusColor};">${statusText}</span>
+        </div>
+      `;
+      todayAttendanceList.innerHTML += attendanceItem;
+    });
+
+  } catch (error) {
+    console.error('Error fetching today\'s attendance:', error);
+    noTodayAttendance.style.display = 'block';
+    todayAttendanceList.innerHTML = '';
+  }
+}
+
+// Update `onAuthStateChanged` to call the new function
 auth.onAuthStateChanged(user => {
   if (user) {
     console.log('User authenticated:', user.email);
     loadUserProfile(user);
-    // Note: Profile check is now handled at login time in index.html
-    // New signups are redirected to complete-profile.html before reaching dashboard
+    fetchTodayAttendance(user); // Fetch today's attendance
+    fetchAttendanceData(); // Fetch all attendance data for charts and warnings
+    fetchNotificationsFromServer(); // Fetch real notifications from Firebase
   } else {
     window.location.href = 'index.html';
   }
@@ -327,7 +368,7 @@ function updateNotifications(notifications) {
   if (notifications.length > 0) {
     notificationsSection.style.display = 'block';
     noNotifications.style.display = 'none';
-    notifications.forEach(notification = 3e {
+    notifications.forEach(notification => {
       const notificationItem = document.createElement('div');
       notificationItem.className = 'notification-item';
       notificationItem.innerHTML = `
@@ -421,27 +462,9 @@ function getTimeAgo(date) {
   return `${Math.floor(diffInSeconds / 86400)} days ago`;
 }
 
-// Example notifications for demo (remove this in production)
-function loadDemoNotifications() {
-  // Check if there are low attendance subjects and add warning
-  const lowSubjects = Object.entries(subjectData).filter(([_, val]) => val < 75);
-  if (lowSubjects.length > 0) {
-    addNotification('warning', `Low attendance in ${lowSubjects.map(([sub]) => sub).join(', ')}`, '2 hours ago');
-  }
-  
-  // Add some demo notifications (you can remove these)
-  addNotification('success', 'Leave request approved for JAVA', '1 day ago');
-  addNotification('info', 'New assignment posted in DBMS', '2 days ago');
-}
-
-// Load demo notifications and initialize page
+// Initialize page with dynamic data only
 function initializePage() {
-  // Load demo notifications (replace with actual data source)
-  loadDemoNotifications();
-  // In production, you would call fetchNotificationsFromServer() instead
-  // fetchNotificationsFromServer();
-  
-  // Populate today's classes
+  // Only populate today's classes - notifications are now handled by Firebase
   populateTodayClasses();
 }
 
@@ -651,11 +674,8 @@ document.addEventListener('DOMContentLoaded', function() {
       closeProfilePopup();
       showNotification('Profile Completed!', 'Your profile has been successfully completed. You can now access all dashboard features.');
       
-      // Update welcome message with student name
-      const studentNameElement = document.getElementById('studentName');
-      if (studentNameElement) {
-        studentNameElement.textContent = `Welcome, ${profileData.fullName}`;
-      }
+      // Update welcome message with student name and registration number
+      updateWelcomeMessage(profileData.fullName, profileData.regNumber);
       
       // Update today's status with student name
       const todaySection = document.querySelector('.section');
@@ -792,6 +812,35 @@ function handlePhotoUpload(event) {
   }
 }
 
+// Extract name from email address
+function extractNameFromEmail(email) {
+  if (!email) return 'Student';
+  
+  try {
+    // Get the part before @ symbol
+    const localPart = email.split('@')[0];
+    
+    // Remove numbers and special characters, split by dots/underscores/hyphens
+    const nameParts = localPart
+      .replace(/[0-9]/g, '') // Remove numbers
+      .split(/[._-]+/) // Split by dots, underscores, hyphens
+      .filter(part => part.length > 0) // Remove empty parts
+      .map(part => {
+        // Capitalize first letter of each part
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      });
+    
+    // Join the parts with space
+    const extractedName = nameParts.join(' ');
+    
+    // Return the extracted name or fallback
+    return extractedName.length > 0 ? extractedName : 'Student';
+  } catch (error) {
+    console.error('Error extracting name from email:', error);
+    return 'Student';
+  }
+}
+
 // Load user profile and populate welcome message
 async function loadUserProfile(user) {
   console.log('loadUserProfile called for:', user.email);
@@ -804,10 +853,7 @@ async function loadUserProfile(user) {
       console.log('Found saved profile:', profileData);
       
       // Populate welcome message with student name
-      const studentNameElement = document.getElementById('studentName');
-      if (studentNameElement) {
-        studentNameElement.textContent = `Welcome, ${profileData.fullName || 'Student'}`;
-      }
+      updateWelcomeMessage(profileData.fullName || extractNameFromEmail(user.email), profileData.regNumber);
       
       return;
     }
@@ -823,10 +869,7 @@ async function loadUserProfile(user) {
         localStorage.setItem('profileCompleted', 'true');
         
         // Populate welcome message with student name
-        const studentNameElement = document.getElementById('studentName');
-        if (studentNameElement) {
-        studentNameElement.textContent = `Welcome, ${profileData.fullName || 'Student'}`;
-        }
+        updateWelcomeMessage(profileData.fullName || extractNameFromEmail(user.email), profileData.regNumber);
         
         return;
       }
@@ -834,19 +877,38 @@ async function loadUserProfile(user) {
       console.log('No profile document found');
     }
     
-    // Fallback to default name if no profile found
-    const studentNameElement = document.getElementById('studentName');
-    if (studentNameElement) {
-      studentNameElement.textContent = 'Welcome, Student';
-    }
+    // Fallback to name extracted from email
+    const nameFromEmail = extractNameFromEmail(user.email);
+    updateWelcomeMessage(nameFromEmail);
+    console.log('Using name extracted from email:', nameFromEmail);
     
   } catch (error) {
     console.error('Error loading user profile:', error);
-    // Fallback to default name on error
-    const studentNameElement = document.getElementById('studentName');
-    if (studentNameElement) {
-      studentNameElement.textContent = 'Welcome, Student';
+    // Fallback to name extracted from email even on error
+    const nameFromEmail = extractNameFromEmail(user?.email);
+    updateWelcomeMessage(nameFromEmail);
+  }
+}
+
+// Update welcome message with student name
+function updateWelcomeMessage(studentName, regNumber = null) {
+  const studentNameElement = document.getElementById('studentName');
+  if (studentNameElement) {
+    // Create a more personalized welcome message
+    let welcomeText = `Welcome, ${studentName}`;
+    if (regNumber) {
+      welcomeText += ` (${regNumber})`;
     }
+    studentNameElement.textContent = welcomeText;
+    
+    // Add a subtle animation when updating
+    studentNameElement.style.opacity = '0';
+    setTimeout(() => {
+      studentNameElement.style.opacity = '1';
+      studentNameElement.style.transition = 'opacity 0.5s ease';
+    }, 100);
+    
+    console.log('Welcome message updated:', welcomeText);
   }
 }
 
