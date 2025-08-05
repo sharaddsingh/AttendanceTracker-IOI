@@ -307,6 +307,14 @@ async function fetchTodayAttendance(user) {
 auth.onAuthStateChanged(user => {
   if (user) {
     console.log('User authenticated:', user.email);
+    
+    // First check if profile is complete before loading dashboard
+    if (checkUserProfile()) {
+      console.log('Profile incomplete, redirecting...');
+      return; // Stop execution if redirecting to profile completion
+    }
+    
+    // Only load dashboard data if profile is complete
     loadUserProfile(user);
     fetchTodayAttendance(user); // Fetch today's attendance
     fetchAttendanceData(); // Fetch all attendance data for charts and warnings
@@ -323,29 +331,76 @@ window.onload = function() {
 
 // Check if user's profile is incomplete
 function checkUserProfile() {
+  console.log('=== Profile Check Started ===');
+  
   const profileCompleted = localStorage.getItem('profileCompleted');
   const savedProfile = localStorage.getItem('studentProfile');
+  const profileSkipped = localStorage.getItem('profileSkipped');
   
-  // Redirect to profile completion page if profile is not completed OR no saved profile exists
-  if (!profileCompleted || !savedProfile) {
-    console.log('Profile not completed or not saved, redirecting to complete-profile.html');
-    window.location.href = 'complete-profile.html';
-    return true;
-  }
-
-  // Also check if saved profile has all required fields
-  if (savedProfile) {
-    const profileData = JSON.parse(savedProfile);
-    const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
-    const isComplete = requiredFields.every(field => profileData[field] && profileData[field].trim() !== '');
-    if (!isComplete) {
-      console.log('Profile data incomplete, redirecting to complete-profile.html');
+  console.log('Profile status:', {
+    profileCompleted: profileCompleted,
+    savedProfile: savedProfile ? 'exists' : 'null',
+    profileSkipped: profileSkipped
+  });
+  
+  // Check if profile was completed
+  if (!profileCompleted || profileCompleted !== 'true') {
+    console.log('Profile not marked as completed, checking saved profile...');
+    
+    // If no saved profile exists at all
+    if (!savedProfile) {
+      console.log('No saved profile found, redirecting to complete-profile.html');
       window.location.href = 'complete-profile.html';
       return true;
     }
   }
-
-  console.log('Profile complete, no redirect needed');
+  
+  // Parse and validate saved profile if it exists
+  if (savedProfile) {
+    try {
+      const profileData = JSON.parse(savedProfile);
+      console.log('Parsed profile data:', profileData);
+      
+      const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
+      const fieldStatus = {};
+      
+      // Check each required field
+      requiredFields.forEach(field => {
+        const value = profileData[field];
+        fieldStatus[field] = {
+          exists: value !== undefined && value !== null,
+          notEmpty: value && typeof value === 'string' && value.trim() !== ''
+        };
+      });
+      
+      console.log('Field validation status:', fieldStatus);
+      
+      const isComplete = requiredFields.every(field => 
+        fieldStatus[field].exists && fieldStatus[field].notEmpty
+      );
+      
+      if (!isComplete) {
+        const missingFields = requiredFields.filter(field => 
+          !fieldStatus[field].exists || !fieldStatus[field].notEmpty
+        );
+        console.log('Profile incomplete. Missing/empty fields:', missingFields);
+        console.log('Redirecting to complete-profile.html');
+        window.location.href = 'complete-profile.html';
+        return true;
+      }
+      
+    } catch (error) {
+      console.error('Error parsing saved profile:', error);
+      console.log('Corrupted profile data, redirecting to complete-profile.html');
+      localStorage.removeItem('studentProfile'); // Clear corrupted data
+      localStorage.removeItem('profileCompleted');
+      window.location.href = 'complete-profile.html';
+      return true;
+    }
+  }
+  
+  console.log('Profile validation passed, no redirect needed');
+  console.log('=== Profile Check Completed ===');
   return false;
 }
 
@@ -474,97 +529,6 @@ function closeProfilePopup() {
 }
 
 
-/* ===== QR SCANNING & PHOTO CAPTURE ===== */
-// QR Scanner and photo capture functions
-let stream = null;
-
-async function startQRScan() {
-  const captureSection = document.getElementById('captureSection');
-  captureSection.style.display = 'block';
-  captureSection.scrollIntoView({ behavior: 'smooth' });
-  
-  // Start camera for mobile/tablet devices
-  if (window.innerWidth <= 768) {
-    try {
-      const video = document.getElementById('camera');
-      stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } // Front camera
-      });
-      video.srcObject = stream;
-      video.style.display = 'block';
-      
-      // Auto-capture after 3 seconds
-      setTimeout(() => {
-        capturePhoto();
-      }, 3000);
-    } catch (err) {
-      alert('Camera access denied or not available.');
-    }
-  } else {
-    alert('QR scanning is only available on mobile/tablet devices.');
-  }
-}
-
-function capturePhoto() {
-  const video = document.getElementById('camera');
-  const canvas = document.getElementById('photoCanvas');
-  const capturedImage = document.getElementById('capturedImage');
-  const ctx = canvas.getContext('2d');
-  
-  // Draw video frame to canvas
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-  // Convert canvas to image and display
-  const imageDataUrl = canvas.toDataURL('image/png');
-  capturedImage.src = imageDataUrl;
-  capturedImage.style.display = 'block';
-  
-  // Hide video and show mark attendance button
-  video.style.display = 'none';
-  document.getElementById('captureBtn').style.display = 'none';
-  document.getElementById('markAttendanceBtn').style.display = 'inline-block';
-  
-  // Stop camera stream
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
-  
-  // Save image to database (simulated)
-  saveImageToDatabase(imageDataUrl);
-}
-
-function saveImageToDatabase(imageData) {
-  // Simulate saving image to Firebase Storage
-  console.log('Image saved to database:', imageData.substring(0, 50) + '...');
-}
-
-function markAttendance() {
-  // Show success animation
-  const successTick = document.getElementById('successTick');
-  successTick.style.display = 'block';
-  
-  // Animate tick
-  successTick.style.transform = 'scale(0.5)';
-  setTimeout(() => {
-    successTick.style.transform = 'scale(1)';
-    successTick.style.transition = 'transform 0.3s ease';
-  }, 100);
-  
-  // Update attendance status
-  setTimeout(() => {
-    alert('✅ Attendance marked successfully!');
-    document.getElementById('captureSection').style.display = 'none';
-    
-    // Update today's status
-    const todaySection = document.querySelector('.section');
-    todaySection.innerHTML = `
-      <h2>Today's Status</h2>
-      <p><strong>Status:</strong> <span style="color: #28a745;">✓ Present</span></p>
-      <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
-      <p><strong>Verified:</strong> Photo captured and saved</p>
-    `;
-  }, 1500);
-}
 
 // Notification system
 function showNotification(title, message) {
@@ -738,67 +702,6 @@ document.getElementById("leaveForm").addEventListener("submit", function (e) {
 });
 
 
-/* ===== THEME & UI FUNCTIONS ===== */
-// Theme toggle function
-function toggleTheme() {
-  const body = document.body;
-  const themeIcon = document.getElementById('themeIcon');
-  const themeText = document.getElementById('themeText');
-  const isDarkMode = body.style.background.includes('linear-gradient(135deg, #000, #333)');
-  
-  if (isDarkMode || !body.style.background) {
-    // Switch to light mode
-    body.style.background = 'linear-gradient(135deg, #f8f9fa, #e9ecef)';
-    body.style.color = '#333';
-    themeIcon.className = 'fas fa-sun';
-    themeText.textContent = 'Light Mode';
-    
-    // Update section backgrounds for light mode
-    const sections = document.querySelectorAll('.section');
-    sections.forEach(section => {
-      section.style.background = 'rgba(0, 0, 0, 0.05)';
-      section.style.color = '#333';
-    });
-    
-    // Update warning background
-    const warning = document.getElementById('lowAttendanceWarning');
-    if (warning) {
-      warning.style.background = 'radial-gradient(circle, #dc3545, #c82333)';
-    }
-    
-    localStorage.setItem('theme', 'light');
-  } else {
-    // Switch to dark mode
-    body.style.background = 'linear-gradient(135deg, #000, #333)';
-    body.style.color = 'white';
-    themeIcon.className = 'fas fa-moon';
-    themeText.textContent = 'Dark Mode';
-    
-    // Update section backgrounds for dark mode
-    const sections = document.querySelectorAll('.section');
-    sections.forEach(section => {
-      section.style.background = 'rgba(255, 255, 255, 0.05)';
-      section.style.color = 'white';
-    });
-    
-    // Update warning background
-    const warning = document.getElementById('lowAttendanceWarning');
-    if (warning) {
-      warning.style.background = 'radial-gradient(circle, #ff4d4d, #cc0000)';
-    }
-    
-    localStorage.setItem('theme', 'dark');
-  }
-}
-
-
-// Load saved theme on page load
-function loadSavedTheme() {
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'light') {
-    toggleTheme();
-  }
-}
 
 // Photo upload handler
 function handlePhotoUpload(event) {
@@ -849,13 +752,30 @@ async function loadUserProfile(user) {
     // Check if profile exists in localStorage first
     const savedProfile = localStorage.getItem('studentProfile');
     if (savedProfile) {
-      const profileData = JSON.parse(savedProfile);
-      console.log('Found saved profile:', profileData);
-      
-      // Populate welcome message with student name
-      updateWelcomeMessage(profileData.fullName || extractNameFromEmail(user.email), profileData.regNumber);
-      
-      return;
+      try {
+        const profileData = JSON.parse(savedProfile);
+        console.log('Found saved profile:', profileData);
+        
+        // Ensure profile is marked as completed when we have valid saved data
+        const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
+        const isComplete = requiredFields.every(field => 
+          profileData[field] && typeof profileData[field] === 'string' && profileData[field].trim() !== ''
+        );
+        
+        if (isComplete && !localStorage.getItem('profileCompleted')) {
+          console.log('Profile data complete but not marked as completed, fixing...');
+          localStorage.setItem('profileCompleted', 'true');
+        }
+        
+        // Populate welcome message with student name
+        updateWelcomeMessage(profileData.fullName || extractNameFromEmail(user.email), profileData.regNumber);
+        
+        return;
+      } catch (parseError) {
+        console.error('Error parsing saved profile, removing corrupted data:', parseError);
+        localStorage.removeItem('studentProfile');
+        localStorage.removeItem('profileCompleted');
+      }
     }
     
     // Try to fetch user profile from Firebase
@@ -865,22 +785,33 @@ async function loadUserProfile(user) {
       if (profileDoc.exists) {
         const profileData = profileDoc.data();
         console.log('Found Firebase profile:', profileData);
-        localStorage.setItem('studentProfile', JSON.stringify(profileData));
-        localStorage.setItem('profileCompleted', 'true');
         
-        // Populate welcome message with student name
-        updateWelcomeMessage(profileData.fullName || extractNameFromEmail(user.email), profileData.regNumber);
+        // Validate Firebase profile data
+        const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
+        const isComplete = requiredFields.every(field => 
+          profileData[field] && typeof profileData[field] === 'string' && profileData[field].trim() !== ''
+        );
         
-        return;
+        if (isComplete) {
+          localStorage.setItem('studentProfile', JSON.stringify(profileData));
+          localStorage.setItem('profileCompleted', 'true');
+          
+          // Populate welcome message with student name
+          updateWelcomeMessage(profileData.fullName || extractNameFromEmail(user.email), profileData.regNumber);
+          
+          return;
+        } else {
+          console.log('Firebase profile incomplete, user needs to complete profile');
+        }
       }
     } catch (profileError) {
-      console.log('No profile document found');
+      console.log('No profile document found in Firebase');
     }
     
-    // Fallback to name extracted from email
+    // Fallback to name extracted from email (this should only happen if profile is incomplete)
     const nameFromEmail = extractNameFromEmail(user.email);
     updateWelcomeMessage(nameFromEmail);
-    console.log('Using name extracted from email:', nameFromEmail);
+    console.log('Using name extracted from email (profile incomplete):', nameFromEmail);
     
   } catch (error) {
     console.error('Error loading user profile:', error);
@@ -1029,10 +960,9 @@ ${Object.keys(reportData.todayStatus).length > 0 ?
 
 
 /* ===== PAGE INITIALIZATION ===== */
-// Initialize theme and other features when page loads
+// Initialize page when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   // Note: Logout function is already defined in HTML head section
-  loadSavedTheme();
   updateCharts();
   showLowAttendanceWarnings();
 });
