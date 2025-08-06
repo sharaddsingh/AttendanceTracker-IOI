@@ -51,40 +51,70 @@ function showSection(sectionId) {
 
 /**
  * Fetches and displays pending leave requests from Firestore in real-time.
+ * Only shows requests for subjects that the faculty teaches.
  */
 function loadLeaveRequests() {
     const db = firebase.firestore();
     const listContainer = document.getElementById('leaveRequestsList');
     const noRequestsMsg = document.getElementById('no-leave-requests');
 
-    db.collection('leaveRequests').where('status', '==', 'pending')
+    // Check if faculty profile is loaded and has subjects
+    if (!facultyProfile || !facultyProfile.subjects || facultyProfile.subjects.length === 0) {
+        console.log('Faculty profile not loaded or no subjects assigned');
+        listContainer.innerHTML = '';
+        noRequestsMsg.style.display = 'block';
+        noRequestsMsg.innerText = 'Complete your profile to view leave requests for your subjects.';
+        return;
+    }
+
+    // Filter requests for subjects that this faculty teaches
+    db.collection('leaveRequests')
+        .where('status', '==', 'pending')
+        .where('subject', 'in', facultyProfile.subjects)
         .onSnapshot(snapshot => {
             if (snapshot.empty) {
                 listContainer.innerHTML = ''; // Clear old requests
                 noRequestsMsg.style.display = 'block';
+                noRequestsMsg.innerText = `No pending leave requests for your subjects (${facultyProfile.subjects.join(', ')}).`;
                 return;
             }
 
             noRequestsMsg.style.display = 'none';
             listContainer.innerHTML = ''; // Clear list before re-rendering
+            
+            // Sort requests by timestamp (newest first)
+            const requests = [];
             snapshot.forEach(doc => {
-                const request = doc.data();
-                const requestId = doc.id;
-
+                requests.push({ id: doc.id, data: doc.data() });
+            });
+            
+            requests.sort((a, b) => {
+                const timeA = a.data.createdAt ? new Date(a.data.createdAt) : new Date(0);
+                const timeB = b.data.createdAt ? new Date(b.data.createdAt) : new Date(0);
+                return timeB - timeA;
+            });
+            
+            requests.forEach(({ id: requestId, data: request }) => {
                 const item = document.createElement('div');
                 item.className = 'leave-request-item pending';
+                
+                const submittedDate = request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Unknown';
+                
                 item.innerHTML = `
                     <div class="leave-info">
                         <h4>${request.studentName || 'Unknown Student'} (${request.regNumber || 'N/A'})</h4>
                         <p><strong>Subject:</strong> ${request.subject}</p>
-                        <p><strong>Date:</strong> ${request.date}</p>
+                        <p><strong>Leave Date:</strong> ${request.date} | <strong>Classes:</strong> ${request.periods || 'N/A'}</p>
+                        <p><strong>School/Batch:</strong> ${request.school || 'N/A'} - ${request.batch || 'N/A'}</p>
                         <p><strong>Reason:</strong> ${request.reason || 'No reason provided.'}</p>
+                        <p style="font-size: 12px; color: #666; margin-top: 8px;"><strong>Submitted:</strong> ${submittedDate}</p>
+                        ${request.hasAttachment ? '<p style="font-size: 12px; color: #007bff;"><i class="fas fa-paperclip"></i> Has attachment</p>' : ''}
                     </div>
                     <div class="leave-actions">
-                        <button class="approve-btn" onclick="approveLeave('${requestId}')">
+                        <button class="approve-btn" onclick="updateLeaveRequestStatus('${requestId}', 'approved')">
                             <i class="fas fa-check"></i> Approve
                         </button>
-                        <button class="reject-btn" onclick="rejectLeave('${requestId}')">
+                        <button class="reject-btn" onclick="updateLeaveRequestStatus('${requestId}', 'rejected')">
                             <i class="fas fa-times"></i> Reject
                         </button>
                     </div>
@@ -98,38 +128,358 @@ function loadLeaveRequests() {
         });
 }
 
+// Note: Direct approval/rejection without comment popup
+
 /**
- * Approves a leave request by updating its status in Firestore.
+ * Updates a leave request status with optional comment
  * @param {string} requestId - The document ID of the leave request.
+ * @param {string} status - 'approved' or 'rejected'
+ * @param {string} comment - Optional faculty comment
+ */
+function updateLeaveRequestStatus(requestId, status, comment = '') {
+    const db = firebase.firestore();
+    
+    const updateData = {
+        status: status,
+        processedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        processedBy: facultyProfile ? facultyProfile.fullName : currentFaculty.email
+    };
+    
+    // Add comment if provided
+    if (comment && comment.trim()) {
+        updateData.facultyComment = comment.trim();
+    }
+    
+    db.collection('leaveRequests').doc(requestId).update(updateData)
+        .then(() => {
+            console.log(`Request ${requestId} ${status}.`);
+            showSuccessMessage(`Leave request ${status} successfully!`);
+            
+            // Send notification to student
+            createStudentNotification(requestId, status, comment);
+        })
+        .catch(error => {
+            console.error(`Error ${status === 'approved' ? 'approving' : 'rejecting'} request:`, error);
+            alert(`Error ${status === 'approved' ? 'approving' : 'rejecting'} request. Please try again.`);
+        });
+}
+
+/**
+ * Creates a notification for the student about their leave request status
+ * @param {string} requestId - The document ID of the leave request.
+ * @param {string} status - 'approved' or 'rejected'
+ * @param {string} comment - Optional faculty comment
+ */
+async function createStudentNotification(requestId, status, comment = '') {
+    try {
+        const db = firebase.firestore();
+        
+        console.log(`Creating notification for request: ${requestId}, status: ${status}`);
+        
+        // First get the leave request to find student info
+        const requestDoc = await db.collection('leaveRequests').doc(requestId).get();
+        if (!requestDoc.exists) {
+            console.error('Leave request document not found:', requestId);
+            return;
+        }
+        
+        const requestData = requestDoc.data();
+        console.log('Leave request data found:', {
+            studentName: requestData.studentName,
+            userId: requestData.userId,
+            subject: requestData.subject,
+            date: requestData.date
+        });
+        
+        const statusText = status === 'approved' ? 'approved' : 'rejected';
+        const facultyName = facultyProfile ? facultyProfile.fullName : 'Faculty';
+        
+        // Create detailed notification message
+        let notificationMessage = `Your leave request for ${requestData.subject} on ${requestData.date} has been ${statusText} by ${facultyName}.`;
+        if (comment && comment.trim()) {
+            notificationMessage += ` Comment: "${comment.trim()}"`;
+        }
+        
+        const notificationData = {
+            userId: requestData.userId,
+            type: 'leave_status',
+            title: `Leave Request ${status === 'approved' ? 'Approved ✅' : 'Rejected ❌'}`,
+            message: notificationMessage,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            read: false,
+            icon: status === 'approved' ? 'fa-check-circle' : 'fa-times-circle',
+            color: status === 'approved' ? '#28a745' : '#dc3545',
+            relatedRequestId: requestId,
+            leaveDate: requestData.date,
+            subject: requestData.subject,
+            facultyName: facultyName,
+            status: status,
+            comment: comment || '',
+            createdAt: new Date() // Add explicit timestamp for fallback
+        };
+        
+        console.log('Creating notification with data:', notificationData);
+        
+        const notificationRef = await db.collection('notifications').add(notificationData);
+        console.log('Student notification created successfully with ID:', notificationRef.id);
+        
+        // Verify the notification was created
+        const createdNotification = await notificationRef.get();
+        if (createdNotification.exists) {
+            console.log('Verification: Notification exists in database:', createdNotification.data());
+        } else {
+            console.error('Verification failed: Notification was not created');
+        }
+        
+        // Also log for debugging
+        console.log(`✅ Notification sent to student ${requestData.studentName} (${requestData.userId}) for ${status} leave request`);
+        
+        return notificationRef.id;
+    } catch (error) {
+        console.error('❌ Error creating student notification:', error);
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack
+        });
+        
+        // Try to show error to faculty user
+        alert(`Error sending notification to student: ${error.message}`);
+    }
+}
+
+/**
+ * Legacy functions for backward compatibility
  */
 function approveLeave(requestId) {
-    const db = firebase.firestore();
-    db.collection('leaveRequests').doc(requestId).update({
-        status: 'approved'
-    }).then(() => {
-        console.log(`Request ${requestId} approved.`);
-        alert('Leave request approved!');
-    }).catch(error => console.error("Error approving request: ", error));
+    showApprovalDialog(requestId, 'approved');
 }
 
-/**
- * Rejects a leave request by updating its status in Firestore.
- * @param {string} requestId - The document ID of the leave request.
- */
 function rejectLeave(requestId) {
-    const db = firebase.firestore();
-    db.collection('leaveRequests').doc(requestId).update({
-        status: 'rejected'
-    }).then(() => {
-        console.log(`Request ${requestId} rejected.`);
-        alert('Leave request rejected.');
-    }).catch(error => console.error("Error rejecting request: ", error));
+    showApprovalDialog(requestId, 'rejected');
+}
+
+// ===== QR MODAL FUNCTIONS =====
+
+// Batch options mapping
+const batchOptions = {
+    "School of Technology": ["24B1", "24B2", "23B1"],
+    "School of Management": ["23B1", "24B1"]
+};
+
+// Global QR timer variables
+let qrTimer = null;
+let qrTimeRemaining = 30;
+
+/**
+ * Opens the QR generation modal
+ */
+function openQRModal() {
+    const modal = document.getElementById('qrModal');
+    const form = document.getElementById('qrForm');
+    const qrCodeDisplay = document.getElementById('qrCodeDisplay');
+    
+    // Reset modal state
+    form.style.display = 'block';
+    qrCodeDisplay.style.display = 'none';
+    form.reset();
+    
+    // Reset batch dropdown
+    const batchSelect = document.getElementById('qrBatch');
+    batchSelect.innerHTML = '<option value="">Select Batch</option>';
+    batchSelect.disabled = true;
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    console.log('QR Modal opened');
 }
 
 /**
- * Generates and displays a QR code for attendance.
+ * Closes the QR generation modal
+ */
+function closeQRModal() {
+    const modal = document.getElementById('qrModal');
+    modal.style.display = 'none';
+    
+    // Clear any running timer
+    if (qrTimer) {
+        clearInterval(qrTimer);
+        qrTimer = null;
+    }
+    
+    console.log('QR Modal closed');
+}
+
+/**
+ * Updates batch options based on selected school
+ */
+function updateBatchOptions() {
+    const schoolSelect = document.getElementById('qrSchool');
+    const batchSelect = document.getElementById('qrBatch');
+    const selectedSchool = schoolSelect.value;
+    
+    // Clear existing options
+    batchSelect.innerHTML = '<option value="">Select Batch</option>';
+    
+    if (selectedSchool && batchOptions[selectedSchool]) {
+        batchSelect.disabled = false;
+        batchOptions[selectedSchool].forEach(batch => {
+            const option = document.createElement('option');
+            option.value = batch;
+            option.textContent = batch;
+            batchSelect.appendChild(option);
+        });
+        console.log(`Updated batch options for ${selectedSchool}:`, batchOptions[selectedSchool]);
+    } else {
+        batchSelect.disabled = true;
+    }
+}
+
+/**
+ * Generates and displays a QR code for attendance with 30-second timer
  */
 function generateQRCode() {
+    const school = document.getElementById('qrSchool').value;
+    const batch = document.getElementById('qrBatch').value;
+    const subject = document.getElementById('qrSubject').value;
+    const periods = document.getElementById('qrPeriods').value;
+    
+    // Validation
+    if (!school || !batch || !subject || !periods) {
+        alert('Please fill in all fields to generate a QR code.');
+        return;
+    }
+    
+    // Hide form and show QR display
+    document.getElementById('qrForm').style.display = 'none';
+    const qrCodeDisplay = document.getElementById('qrCodeDisplay');
+    qrCodeDisplay.style.display = 'block';
+    
+    // Populate display information
+    document.getElementById('displaySchool').textContent = school;
+    document.getElementById('displayBatch').textContent = batch;
+    document.getElementById('displaySubject').textContent = subject;
+    document.getElementById('displayPeriods').textContent = periods;
+    
+    // Create unique session ID and QR data
+    const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const qrData = {
+        sessionId: sessionId,
+        school: school,
+        batch: batch,
+        subject: subject,
+        periods: parseInt(periods),
+        facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
+        facultyId: currentFaculty.uid,
+        timestamp: new Date().toISOString(),
+        validFor: 30, // 30 seconds
+        redirectUrl: window.location.origin + '/student-dashboard.html'
+    };
+    
+    // Generate QR Code
+    const qrCanvas = document.getElementById('qrCodeCanvas');
+    const qrDataString = JSON.stringify(qrData);
+    
+    QRCode.toCanvas(qrCanvas, qrDataString, { 
+        width: 256,
+        height: 256,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    }, (error) => {
+        if (error) {
+            console.error('QR Code generation error:', error);
+            alert('Failed to generate QR code. Please try again.');
+            return;
+        }
+        
+        console.log('QR Code generated successfully!');
+        console.log('QR Data:', qrData);
+        
+        // Start 30-second countdown timer
+        startQRTimer();
+    });
+}
+
+/**
+ * Starts the 30-second countdown timer for QR code expiration
+ */
+function startQRTimer() {
+    qrTimeRemaining = 30;
+    const timerElement = document.getElementById('qrTimer');
+    const statusElement = document.getElementById('qrStatus');
+    const regenerateBtn = document.querySelector('.regenerate-btn');
+    
+    // Reset UI state
+    timerElement.classList.remove('expired');
+    statusElement.classList.remove('expired');
+    statusElement.innerHTML = '<p>QR Code is active. Students can scan to mark attendance.</p>';
+    regenerateBtn.style.display = 'none';
+    
+    // Update timer display immediately
+    timerElement.textContent = qrTimeRemaining;
+    
+    // Clear any existing timer
+    if (qrTimer) {
+        clearInterval(qrTimer);
+    }
+    
+    // Start countdown
+    qrTimer = setInterval(() => {
+        qrTimeRemaining--;
+        timerElement.textContent = qrTimeRemaining;
+        
+        if (qrTimeRemaining <= 0) {
+            // Timer expired
+            clearInterval(qrTimer);
+            qrTimer = null;
+            
+            // Update UI to show expired state
+            timerElement.classList.add('expired');
+            timerElement.textContent = 'EXPIRED';
+            
+            statusElement.classList.add('expired');
+            statusElement.innerHTML = '<p>QR Code has expired. Generate a new one to continue.</p>';
+            
+            regenerateBtn.style.display = 'inline-flex';
+            
+            console.log('QR Code expired after 30 seconds');
+        }
+    }, 1000);
+    
+    console.log('QR Timer started - 30 seconds countdown');
+}
+
+/**
+ * Regenerates a new QR code (resets form)
+ */
+function regenerateQR() {
+    // Hide QR display and show form again
+    document.getElementById('qrCodeDisplay').style.display = 'none';
+    document.getElementById('qrForm').style.display = 'block';
+    
+    // Clear timer
+    if (qrTimer) {
+        clearInterval(qrTimer);
+        qrTimer = null;
+    }
+    
+    console.log('Regenerating QR - returning to form');
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    const modal = document.getElementById('qrModal');
+    if (event.target === modal) {
+        closeQRModal();
+    }
+}
+
+/**
+ * Legacy QR generation function - kept for backward compatibility
+ */
+function generateQRCodeLegacy() {
     const subject = document.getElementById('subjectSelect').value;
     const sessionDate = document.getElementById('sessionDate').value;
     const sessionTime = document.getElementById('sessionTime').value;
@@ -300,6 +650,9 @@ async function handleFacultyProfileSubmission(event) {
     }
     
     try {
+        console.log('Starting faculty profile submission...');
+        console.log('Current user:', currentFaculty);
+        
         const db = firebase.firestore();
         const profileData = {
             fullName,
@@ -314,15 +667,22 @@ async function handleFacultyProfileSubmission(event) {
             updatedAt: new Date()
         };
         
+        console.log('Profile data to save:', profileData);
+        console.log('User UID:', currentFaculty.uid);
+        
         // Save to Firestore
+        console.log('Saving to faculty collection...');
         await db.collection('faculty').doc(currentFaculty.uid).set(profileData);
+        console.log('Faculty document saved successfully');
         
         // Update user document as well
+        console.log('Updating user document...');
         await db.collection('users').doc(currentFaculty.uid).update({
             profileCompleted: true,
             fullName: fullName,
             updatedAt: new Date()
         });
+        console.log('User document updated successfully');
         
         console.log('Faculty profile saved successfully');
         facultyProfile = profileData;
@@ -338,7 +698,18 @@ async function handleFacultyProfileSubmission(event) {
         
     } catch (error) {
         console.error('Error saving faculty profile:', error);
-        alert('Error saving profile. Please try again.');
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error);
+        
+        // Check if it's a permission error
+        if (error.code === 'permission-denied') {
+            alert('Permission denied. Please check if you are properly authenticated.');
+        } else if (error.code === 'not-found') {
+            alert('Document not found. Please try logging in again.');
+        } else {
+            alert(`Error saving profile: ${error.message}. Please try again.`);
+        }
     }
 }
 
@@ -347,7 +718,19 @@ async function handleFacultyProfileSubmission(event) {
  * @param {Object} profileData - Faculty profile data
  */
 function showFacultyWelcome(profileData) {
-    const header = document.querySelector('.header div:first-child');
+    // Find the header container
+    const header = document.querySelector('.header');
+    
+    if (!header) {
+        console.error('Header container not found');
+        return;
+    }
+    
+    // Check if welcome message already exists to avoid duplicates
+    const existingWelcome = header.querySelector('.faculty-welcome');
+    if (existingWelcome) {
+        existingWelcome.remove();
+    }
     
     // Create welcome message
     const welcomeDiv = document.createElement('div');
@@ -357,8 +740,15 @@ function showFacultyWelcome(profileData) {
         <p>Department(s): ${profileData.departments ? profileData.departments.join(', ') : profileData.department || 'N/A'} | Subjects: ${profileData.subjects.join(', ')}</p>
     `;
     
-    // Insert after the main title
-    header.appendChild(welcomeDiv);
+    // Insert after the header-top div (which contains title and logout button)
+    const headerTop = header.querySelector('.header-top');
+    if (headerTop) {
+        // Insert after the header-top div
+        headerTop.insertAdjacentElement('afterend', welcomeDiv);
+    } else {
+        // Fallback: just append to header
+        header.appendChild(welcomeDiv);
+    }
 }
 
 /**

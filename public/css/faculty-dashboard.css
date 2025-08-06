@@ -34,15 +34,35 @@ body {
 /* ===== LAYOUT & HEADER ===== */
 .header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
     margin-bottom: 20px;
+    gap: 15px;
+    width: 100%;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .header h1 {
-    font-size: 1.5rem;
+    font-size: 2rem;
+    font-weight: 600;
+    text-align: left;
+    margin: 0;
+    color: var(--primary-color);
+}
+
+.header .header-controls {
+    display: flex;
+    align-items: center;
 }
 
 .dashboard {
@@ -140,47 +160,114 @@ label {
 
 /* ===== LEAVE REQUESTS (DYNAMIC) ===== */
 #leaveRequestsList {
-    max-height: 400px;
+    max-height: 500px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 15px;
+    padding-right: 5px;
 }
 
 .leave-request-item {
     background: #f8f8f8;
-    padding: 15px;
-    border-radius: 8px;
+    padding: 18px;
+    border-radius: 10px;
     border-left: 5px solid var(--primary-color);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 15px;
+    gap: 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.leave-request-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: #f0f8ff;
+}
+
+.leave-info {
+    flex: 1;
 }
 
 .leave-info h4 {
-    margin-bottom: 5px;
+    margin-bottom: 8px;
+    color: var(--primary-color);
+    font-size: 1.1rem;
 }
+
 .leave-info p {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: #555;
-    margin: 2px 0;
+    margin: 4px 0;
+    line-height: 1.4;
+}
+
+.leave-info p:last-child {
+    margin-bottom: 0;
 }
 
 .leave-actions {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 100px;
 }
 
 .approve-btn, .reject-btn {
     border: none;
     color: white;
-    padding: 8px 12px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
-.approve-btn { background: var(--success-color); }
-.approve-btn:hover { background: var(--success-hover); }
-.reject-btn { background: var(--danger-color); }
-.reject-btn:hover { background: var(--danger-hover); }
+
+.approve-btn { 
+    background: var(--success-color); 
+}
+
+.approve-btn:hover { 
+    background: var(--success-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.reject-btn { 
+    background: var(--danger-color); 
+}
+
+.reject-btn:hover { 
+    background: var(--danger-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+/* Scrollbar styling for leave requests list */
+#leaveRequestsList::-webkit-scrollbar {
+    width: 6px;
+}
+
+#leaveRequestsList::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+#leaveRequestsList::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+#leaveRequestsList::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
 
 /* ===== FACULTY PROFILE POPUP STYLES ===== */
 .profile-popup {
@@ -300,35 +387,495 @@ label {
     background: linear-gradient(135deg, #e8f5e8, #f0f8ff);
     border: 1px solid #c3e6cb;
     border-radius: 8px;
-    padding: 15px;
+    padding: 20px;
     margin-bottom: 20px;
-    text-align: center;
+    text-align: left;
+    /* width: 100%; */
+    box-sizing: border-box;
 }
 
 .faculty-welcome h4 {
     color: var(--success-color);
-    margin-bottom: 5px;
+    margin-bottom: 8px;
+    /* font-size: 2rem; */
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.faculty-welcome h4 i {
+   
+    color: var(--success-color);
 }
 
 .faculty-welcome p {
-    color: #666;
+    color: #555;
     margin: 0;
-    font-size: 14px;
+    font-size: 1rem;
+    /* line-height: 1.5; */
+    font-weight: 800;
 }
 
-/* Responsive adjustments */
-@media (max-width: 600px) {
+/* ===== COMPREHENSIVE RESPONSIVE DESIGN ===== */
+
+/* Extra Large Desktop (1440px and up) */
+@media screen and (min-width: 1440px) {
+    .dashboard {
+        grid-template-columns: repeat(3, 1fr);
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+}
+
+/* Large Desktop (1200px to 1439px) */
+@media screen and (max-width: 1439px) {
+    .dashboard {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+}
+
+/* Standard Desktop (992px to 1199px) */
+@media screen and (max-width: 1199px) {
+    body {
+        padding: 15px;
+    }
+    
+    .dashboard {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 15px;
+    }
+    
+    .section {
+        padding: 18px;
+    }
+}
+
+/* Tablet Landscape (768px to 991px) */
+@media screen and (max-width: 991px) {
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+        padding-bottom: 15px;
+    }
+    
+    .header-top {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .header h1 {
+        font-size: 1.6rem;
+    }
+    
+    .dashboard {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    
+    .quick-actions-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+    }
+    
+    .action-btn {
+        padding: 12px;
+    }
+    
+    .action-btn i {
+        font-size: 1.3rem;
+    }
+    
+    .action-btn span {
+        font-size: 0.85rem;
+    }
+}
+
+/* Tablet Portrait (576px to 767px) */
+@media screen and (max-width: 767px) {
+    body {
+        padding: 10px;
+    }
+    
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .header-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        width: 100%;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+        text-align: left;
+        margin-bottom: 0;
+    }
+    
+    .header .header-controls {
+        align-self: flex-start;
+        width: 100%;
+    }
+    
+    .theme-toggle {
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+    
+    .dashboard {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .section {
+        padding: 15px;
+    }
+    
+    .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+    
+    .action-btn {
+        padding: 15px 10px;
+    }
+    
+    .action-btn span {
+        font-size: 0.8rem;
+    }
+    
+    /* Faculty welcome message - tablet */
+    .faculty-welcome {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    
+    .faculty-welcome h4 {
+        font-size: 1.6rem;
+        margin-bottom: 8px;
+    }
+    
+    .faculty-welcome h4 i {
+        font-size: 1.4rem;
+    }
+    
+    .faculty-welcome p {
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+    
+    /* QR Form responsiveness */
+    .qr-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-group {
+        margin-bottom: 12px;
+    }
+    
+    .form-group label {
+        font-size: 0.9rem;
+    }
+    
+    .form-group input,
+    .form-group select {
+        padding: 12px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .generate-btn {
+        padding: 12px;
+        font-size: 1rem;
+    }
+    
+    /* Leave requests responsiveness */
+    .leave-request-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .leave-actions {
+        flex-direction: row;
+        gap: 10px;
+        min-width: auto;
+    }
+    
+    .approve-btn,
+    .reject-btn {
+        flex: 1;
+        padding: 12px 10px;
+        font-size: 0.85rem;
+    }
+}
+
+/* Mobile Landscape (481px to 575px) */
+@media screen and (max-width: 575px) {
+    .header h1 {
+        font-size: 1.2rem;
+    }
+    
+    .section {
+        padding: 12px;
+        border-radius: 8px;
+    }
+    
+    h2 {
+        font-size: 1.1rem;
+        margin-bottom: 12px;
+    }
+    
+    .quick-actions-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .action-btn {
+        padding: 12px 8px;
+        gap: 6px;
+    }
+    
+    .action-btn i {
+        font-size: 1.2rem;
+    }
+    
+    .action-btn span {
+        font-size: 0.75rem;
+    }
+    
+    /* Faculty welcome message - responsive */
+    .faculty-welcome {
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .faculty-welcome h4 {
+        font-size: 1.4rem;
+        margin-bottom: 6px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .faculty-welcome h4 i {
+        font-size: 1.2rem;
+    }
+    
+    .faculty-welcome p {
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+}
+
+/* Mobile Portrait (320px to 480px) */
+@media screen and (max-width: 480px) {
+    body {
+        padding: 8px;
+    }
+    
+    .header {
+        padding: 15px 0;
+        margin-bottom: 15px;
+    }
+    
+    .header h1 {
+        font-size: 1.1rem;
+    }
+    
+    .theme-toggle {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .section {
+        padding: 10px;
+    }
+    
+    h2 {
+        font-size: 1rem;
+    }
+    
+    .quick-actions-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .action-btn {
+        padding: 15px;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 12px;
+        text-align: left;
+    }
+    
+    .action-btn i {
+        font-size: 1.1rem;
+    }
+    
+    .action-btn span {
+        font-size: 0.9rem;
+    }
+    
+    /* Leave request items - stack everything */
+    .leave-request-item {
+        padding: 12px;
+    }
+    
+    .leave-info h4 {
+        font-size: 1rem;
+    }
+    
+    .leave-info p {
+        font-size: 0.85rem;
+    }
+    
+    .leave-actions {
+        gap: 8px;
+    }
+    
+    .approve-btn,
+    .reject-btn {
+        padding: 10px;
+        font-size: 0.8rem;
+    }
+    
+    /* QR display adjustments */
+    #qrDisplay h3 {
+        font-size: 1rem;
+        margin-bottom: 15px;
+    }
+    
+    #qrcode {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* Profile Popup Responsive Adjustments */
+@media screen and (max-width: 768px) {
     .profile-content {
         margin: 2% auto;
         padding: 20px;
         width: 95%;
+        max-height: 95vh;
     }
     
     #subjectsCheckboxes {
         grid-template-columns: 1fr;
+        max-height: 150px;
     }
     
     .profile-content h3 {
         font-size: 1.3rem;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .profile-content {
+        margin: 1% auto;
+        padding: 15px;
+        width: 98%;
+        border-radius: 8px;
+    }
+    
+    .profile-content h3 {
+        font-size: 1.2rem;
+    }
+    
+    .profile-content input,
+    .profile-content select {
+        padding: 10px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .profile-content button[type="submit"] {
+        padding: 10px 20px;
+        font-size: 15px;
+    }
+    
+    .department-checkbox-item,
+    .subject-checkbox-item {
+        padding: 6px;
+        font-size: 13px;
+    }
+}
+
+/* Touch-friendly improvements for mobile */
+@media (hover: none) and (pointer: coarse) {
+    .action-btn,
+    .approve-btn,
+    .reject-btn,
+    .generate-btn,
+    .theme-toggle {
+        min-height: 44px; /* iOS recommended touch target size */
+        touch-action: manipulation; /* Eliminates delay on touch */
+    }
+    
+    .action-btn:active,
+    .approve-btn:active,
+    .reject-btn:active {
+        transform: scale(0.95);
+    }
+}
+
+/* High DPI/Retina Display Adjustments */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+    .action-btn i,
+    .approve-btn i,
+    .reject-btn i {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+/* Dark mode preference support */
+@media (prefers-color-scheme: dark) {
+    /* Users with dark mode preference will see enhanced contrast */
+    .section {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .leave-request-item:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .spinner {
+        animation: none;
+    }
+}
+
+/* Print styles */
+@media print {
+    .theme-toggle,
+    .action-btn,
+    .approve-btn,
+    .reject-btn {
+        display: none;
+    }
+    
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .section {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #000;
     }
 }

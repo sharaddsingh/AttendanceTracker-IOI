@@ -52,33 +52,68 @@ function showLowAttendanceWarnings() {
   }
 }
 
+// Store chart instances globally to manage them properly
+let subjectChart = null;
+let overallChart = null;
+
 // Function to update all charts with current data
 function updateCharts() {
+  // Destroy existing charts before creating new ones
+  if (subjectChart) {
+    subjectChart.destroy();
+  }
+  if (overallChart) {
+    overallChart.destroy();
+  }
+
+  // Only create charts if we have data
+  if (Object.keys(subjectData).length === 0) {
+    console.log('No attendance data available for charts');
+    return;
+  }
+
   // Subject-wise chart
-  new Chart(document.getElementById("subjectChart"), {
-    type: 'bar',
-    data: {
-      labels: Object.keys(subjectData),
-      datasets: [{
-        label: 'Attendance %',
-        data: Object.values(subjectData),
-        backgroundColor: Object.values(subjectData).map(p => p < 75 ? 'red' : p < 85 ? 'yellow' : 'green')
-      }]
-    },
-    options: { responsive: true }
-  });
+  const subjectChartCanvas = document.getElementById("subjectChart");
+  if (subjectChartCanvas) {
+    subjectChart = new Chart(subjectChartCanvas, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(subjectData),
+        datasets: [{
+          label: 'Attendance %',
+          data: Object.values(subjectData),
+          backgroundColor: Object.values(subjectData).map(p => p < 75 ? 'red' : p < 85 ? 'yellow' : 'green')
+        }]
+      },
+      options: { 
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+  }
+
+  // Calculate overall attendance for the doughnut chart
+  const overallAttendance = calculateOverallAttendance();
+  const missedPercentage = 100 - overallAttendance;
 
   // Overall attendance chart
-  new Chart(document.getElementById("overallChart"), {
-    type: 'doughnut',
-    data: {
-      labels: ["Attended", "Missed"],
-      datasets: [{
-        data: [80, 20],
-        backgroundColor: ["green", "red"]
-      }]
-    }
-  });
+  const overallChartCanvas = document.getElementById("overallChart");
+  if (overallChartCanvas) {
+    overallChart = new Chart(overallChartCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: ["Attended", "Missed"],
+        datasets: [{
+          data: [overallAttendance, missedPercentage],
+          backgroundColor: ["#28a745", "#dc3545"]
+        }]
+      },
+      options: { 
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+  }
 }
 
 
@@ -276,17 +311,29 @@ async function fetchTodayAttendance(user) {
 }
 
 // Update `onAuthStateChanged` to call the new function
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async user => {
   if (user) {
     console.log('User authenticated:', user.email);
     
-    // First check if profile is complete before loading dashboard
-    if (checkUserProfile()) {
-      console.log('Profile incomplete, redirecting...');
-      return; // Stop execution if redirecting to profile completion
+    // Check if this is a new signup that needs profile completion
+    try {
+      const doc = await db.collection("users").doc(user.uid).get();
+      const data = doc.data();
+      
+      if (doc.exists && data.isNewSignup && data.role === "student") {
+        // Mark as no longer new signup and redirect to profile completion
+        await db.collection("users").doc(user.uid).update({
+          isNewSignup: false
+        });
+        console.log('New student signup detected, redirecting to complete-profile.html');
+        window.location.href = "complete-profile.html";
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking signup status:', error);
     }
     
-    // Only load dashboard data if profile is complete
+    // Load dashboard data for existing users
     loadUserProfile(user);
     fetchTodayAttendance(user); // Fetch today's attendance
     fetchAttendanceData(); // Fetch all attendance data for charts and warnings
@@ -299,81 +346,6 @@ auth.onAuthStateChanged(user => {
 // Show profile popup only for new signups
 window.onload = function() {
   initializePage();
-}
-
-// Check if user's profile is incomplete
-function checkUserProfile() {
-  console.log('=== Profile Check Started ===');
-  
-  const profileCompleted = localStorage.getItem('profileCompleted');
-  const savedProfile = localStorage.getItem('studentProfile');
-  const profileSkipped = localStorage.getItem('profileSkipped');
-  
-  console.log('Profile status:', {
-    profileCompleted: profileCompleted,
-    savedProfile: savedProfile ? 'exists' : 'null',
-    profileSkipped: profileSkipped
-  });
-  
-  // Check if profile was completed
-  if (!profileCompleted || profileCompleted !== 'true') {
-    console.log('Profile not marked as completed, checking saved profile...');
-    
-    // If no saved profile exists at all
-    if (!savedProfile) {
-      console.log('No saved profile found, redirecting to complete-profile.html');
-      window.location.href = 'complete-profile.html';
-      return true;
-    }
-  }
-  
-  // Parse and validate saved profile if it exists
-  if (savedProfile) {
-    try {
-      const profileData = JSON.parse(savedProfile);
-      console.log('Parsed profile data:', profileData);
-      
-      const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
-      const fieldStatus = {};
-      
-      // Check each required field
-      requiredFields.forEach(field => {
-        const value = profileData[field];
-        fieldStatus[field] = {
-          exists: value !== undefined && value !== null,
-          notEmpty: value && typeof value === 'string' && value.trim() !== ''
-        };
-      });
-      
-      console.log('Field validation status:', fieldStatus);
-      
-      const isComplete = requiredFields.every(field => 
-        fieldStatus[field].exists && fieldStatus[field].notEmpty
-      );
-      
-      if (!isComplete) {
-        const missingFields = requiredFields.filter(field => 
-          !fieldStatus[field].exists || !fieldStatus[field].notEmpty
-        );
-        console.log('Profile incomplete. Missing/empty fields:', missingFields);
-        console.log('Redirecting to complete-profile.html');
-        window.location.href = 'complete-profile.html';
-        return true;
-      }
-      
-    } catch (error) {
-      console.error('Error parsing saved profile:', error);
-      console.log('Corrupted profile data, redirecting to complete-profile.html');
-      localStorage.removeItem('studentProfile'); // Clear corrupted data
-      localStorage.removeItem('profileCompleted');
-      window.location.href = 'complete-profile.html';
-      return true;
-    }
-  }
-  
-  console.log('Profile validation passed, no redirect needed');
-  console.log('=== Profile Check Completed ===');
-  return false;
 }
 
 // Call this function upon completing the profile setup
@@ -395,20 +367,52 @@ function updateNotifications(notifications) {
   if (notifications.length > 0) {
     notificationsSection.style.display = 'block';
     noNotifications.style.display = 'none';
+    
     notifications.forEach(notification => {
       const notificationItem = document.createElement('div');
-      notificationItem.className = 'notification-item';
+      let itemClass = 'notification-item';
+      
+      // Add special classes for leave status notifications
+      if (notification.type === 'leave_status') {
+        itemClass += notification.status === 'approved' ? ' leave-approved' : ' leave-rejected';
+      }
+      
+      notificationItem.className = itemClass;
       notificationItem.innerHTML = `
-        <i class="fas ${notification.icon}" style="color: ${notification.color};"></i>
-        <span>${notification.message}</span>
-        <small>${notification.time}</small>
+        <i class="fas ${notification.icon} notification-icon" style="color: ${notification.color};"></i>
+        <div class="notification-content">
+          <div class="notification-title">${notification.title || 'Notification'}</div>
+          <div class="notification-message">${notification.message}</div>
+          ${notification.comment && notification.comment.trim() ? `
+            <div style="margin-top: 6px; padding: 6px 10px; background: rgba(0,0,0,0.05); border-radius: 4px; font-size: 12px; color: #666;">
+              <i class="fas fa-comment" style="margin-right: 4px;"></i>
+              <strong>Faculty Comment:</strong> ${notification.comment}
+            </div>
+          ` : ''}
+          <div class="notification-time">
+            <i class="fas fa-clock" style="margin-right: 3px;"></i>
+            ${notification.time}
+            ${notification.subject ? ` • ${notification.subject}` : ''}
+            ${notification.facultyName ? ` • by ${notification.facultyName}` : ''}
+          </div>
+        </div>
       `;
+      
+      // Add click handler to mark as read
+      notificationItem.addEventListener('click', () => {
+        console.log('Notification clicked:', { id: notification.id, type: typeof notification.id });
+        markNotificationAsRead(notification.id);
+      });
+      
       notificationsList.appendChild(notificationItem);
     });
+    
     notificationCount.textContent = notifications.length;
+    notificationCount.style.display = 'inline-flex';
   } else {
     notificationsSection.style.display = 'none';
     noNotifications.style.display = 'block';
+    notificationCount.style.display = 'none';
   }
 }
 
@@ -426,8 +430,11 @@ function addNotification(type, message, timeAgo = 'Just now') {
     'leave': { icon: 'fa-file-alt', color: '#6c757d' }
   };
   
+  // Generate a more unique string ID to avoid Firebase issues
+  const uniqueId = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  
   const notificationData = {
-    id: Date.now(), // Simple ID based on timestamp
+    id: uniqueId, // Use string ID to match Firebase document IDs
     icon: iconMap[type]?.icon || 'fa-bell',
     color: iconMap[type]?.color || '#6c757d',
     message: message,
@@ -452,29 +459,179 @@ function clearAllNotifications() {
   updateNotifications(notifications);
 }
 
-// Fetch notifications from server/database (placeholder)
+// Mark notification as read
+async function markNotificationAsRead(notificationId) {
+  try {
+    if (!auth.currentUser) {
+      console.log('No current user to mark notification as read');
+      return;
+    }
+
+    // Ensure notificationId is a string
+    const docId = String(notificationId);
+    console.log('Marking notification as read:', { originalId: notificationId, docId: docId });
+
+    // Validate the document ID format
+    if (!docId || docId.trim() === '' || docId === 'undefined' || docId === 'null') {
+      console.error('Invalid notification ID:', notificationId);
+      return;
+    }
+
+    // Update the notification in Firebase
+    await db.collection('notifications').doc(docId).update({
+      read: true,
+      readAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log('Notification marked as read successfully:', docId);
+
+    // Update local notifications array
+    notifications = notifications.filter(n => String(n.id) !== docId);
+    updateNotifications(notifications);
+
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    console.error('Error details:', {
+      notificationId: notificationId,
+      type: typeof notificationId,
+      stringified: String(notificationId)
+    });
+  }
+}
+
+// Fetch notifications from server/database with real-time leave status updates
 function fetchNotificationsFromServer() {
-  // This would typically make an API call to fetch notifications
-  // For now, we'll simulate with some sample data
-  db.collection('notifications')
-    .where('userId', '==', auth.currentUser?.uid)
-    .where('read', '==', false)
-    .orderBy('timestamp', 'desc')
-    .onSnapshot(snapshot => {
+  // Listen for real-time notifications from Firebase
+  if (!auth.currentUser) {
+    console.log('No current user for notifications');
+    return;
+  }
+  
+  console.log('🔔 Setting up real-time notifications listener for user:', auth.currentUser.uid);
+  
+  // Store previous notification count to detect new notifications
+  let previousNotificationCount = 0;
+  
+  // First try the main query with timestamp ordering
+  let query = db.collection('notifications')
+    .where('userId', '==', auth.currentUser.uid)
+    .where('read', '==', false);
+    
+  // Try to order by timestamp, but catch index errors
+  try {
+    query = query.orderBy('timestamp', 'desc');
+    console.log('📋 Using timestamp-ordered query');
+  } catch (error) {
+    console.log('⚠️ Timestamp ordering not available, using basic query');
+    // Fallback to basic query without ordering
+    query = db.collection('notifications')
+      .where('userId', '==', auth.currentUser.uid)
+      .where('read', '==', false);
+  }
+  
+  query.onSnapshot(snapshot => {
+      console.log('Notification snapshot received:', {
+        size: snapshot.size,
+        empty: snapshot.empty,
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        fromCache: snapshot.metadata.fromCache
+      });
+      
       const serverNotifications = [];
+      const newNotifications = [];
+      
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          console.log('New notification added:', {
+            id: change.doc.id,
+            type: data.type,
+            status: data.status,
+            message: data.message
+          });
+          
+          const notification = {
+            id: change.doc.id,
+            icon: data.icon || 'fa-bell',
+            color: data.color || '#6c757d',
+            message: data.message,
+            title: data.title || 'Notification',
+            timestamp: data.timestamp ? data.timestamp.toDate() : new Date(),
+            type: data.type || 'general',
+            status: data.status || '',
+            subject: data.subject || '',
+            leaveDate: data.leaveDate || '',
+            facultyName: data.facultyName || '',
+            comment: data.comment || ''
+          };
+          
+          newNotifications.push(notification);
+        }
+      });
+      
+      // Process all current notifications
       snapshot.forEach(doc => {
         const data = doc.data();
-        serverNotifications.push({
+        const notification = {
           id: doc.id,
           icon: data.icon || 'fa-bell',
           color: data.color || '#6c757d',
           message: data.message,
-          time: getTimeAgo(data.timestamp.toDate()),
-          timestamp: data.timestamp.toDate()
-        });
+          title: data.title || 'Notification',
+          timestamp: data.timestamp ? data.timestamp.toDate() : new Date(),
+          type: data.type || 'general',
+          status: data.status || '',
+          subject: data.subject || '',
+          leaveDate: data.leaveDate || '',
+          facultyName: data.facultyName || '',
+          comment: data.comment || ''
+        };
+        
+        notification.time = getTimeAgo(notification.timestamp);
+        serverNotifications.push(notification);
+        
+        // Log leave status notifications for debugging
+        if (data.type === 'leave_status') {
+          console.log('Received leave status notification:', {
+            id: doc.id,
+            status: data.status,
+            subject: data.subject,
+            message: data.message,
+            facultyName: data.facultyName,
+            timestamp: notification.timestamp
+          });
+        }
       });
+      
+      // Update the global notifications array
       notifications = serverNotifications;
       updateNotifications(notifications);
+      
+      // Show toast notification for new leave status updates only
+      newNotifications.forEach(notification => {
+        if (notification.type === 'leave_status') {
+          console.log('Showing toast for new leave status notification:', notification.subject);
+          showLeaveStatusToast(notification);
+        }
+      });
+      
+      console.log(`Loaded ${serverNotifications.length} total notifications, ${newNotifications.length} new notifications`);
+      previousNotificationCount = serverNotifications.length;
+    }, error => {
+      console.error('Error fetching notifications:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Only log error, don't show error notification to user
+      // The system will work fine without real-time notifications
+      console.log('Notifications will not be real-time due to connection issues, but basic functionality remains available.');
+      
+      // Try a simple fallback query without complex conditions
+      console.log('🔄 Attempting fallback notification query...');
+      tryFallbackNotificationQuery();
     });
 }
 
@@ -649,28 +806,70 @@ function clearProfileData() {
   location.reload();
 }
 
-// Enhanced leave form submission
-document.getElementById("leaveForm").addEventListener("submit", function (e) {
+// Enhanced leave form submission with Firebase integration
+document.getElementById("leaveForm").addEventListener("submit", async function (e) {
   e.preventDefault();
   
-  const formData = new FormData(e.target);
-  const leaveData = {
-    date: formData.get('leaveDate'),
-    periods: formData.get('periods'),
-    subject: formData.get('subject'),
-    reason: formData.get('reason'),
-    attachment: formData.get('attachment'),
-    timestamp: new Date().toISOString(),
-    status: 'pending'
-  };
-  
-  // Simulate saving to database and notifying faculty
-  console.log('Leave request submitted:', leaveData);
-  
-  alert(`Leave request submitted successfully!\n\nSubject: ${leaveData.subject}\nDate: ${leaveData.date}\nPeriods: ${leaveData.periods}\n\nYour request has been sent to the subject faculty for approval.`);
-  
-  // Reset form
-  e.target.reset();
+  try {
+    // Get current user and profile data
+    const user = auth.currentUser;
+    if (!user) {
+      alert('Please log in to submit a leave request.');
+      return;
+    }
+    
+    const savedProfile = localStorage.getItem('studentProfile');
+    let studentProfile = {};
+    if (savedProfile) {
+      studentProfile = JSON.parse(savedProfile);
+    }
+    
+    const formData = new FormData(e.target);
+    const leaveData = {
+      userId: user.uid,
+      studentEmail: user.email,
+      studentName: studentProfile.fullName || extractNameFromEmail(user.email),
+      regNumber: studentProfile.regNumber || 'N/A',
+      school: studentProfile.school || 'N/A',
+      batch: studentProfile.batch || 'N/A',
+      date: formData.get('leaveDate'),
+      periods: parseInt(formData.get('periods')),
+      subject: formData.get('subject'),
+      reason: formData.get('reason'),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      status: 'pending',
+      createdAt: new Date()
+    };
+    
+    // Handle file attachment if present
+    const attachmentFile = formData.get('attachment');
+    if (attachmentFile && attachmentFile.size > 0) {
+      // For now, we'll just note that there's an attachment
+      // In a full implementation, you'd upload to Firebase Storage
+      leaveData.hasAttachment = true;
+      leaveData.attachmentName = attachmentFile.name;
+    }
+    
+    // Save to Firebase Firestore
+    const docRef = await db.collection('leaveRequests').add(leaveData);
+    console.log('Leave request submitted with ID:', docRef.id);
+    
+    // Show success message
+    showNotification('Leave Request Submitted!', 
+      `Your leave request for ${leaveData.subject} on ${leaveData.date} has been sent to the faculty for approval.`);
+    
+    // Add notification to local notifications
+    addNotification('leave', 
+      `Leave request submitted for ${leaveData.subject} - ${leaveData.date}`, 
+      'Just now');
+    
+    // Reset form
+    e.target.reset();
+    
+  } catch (error) {
+    console.error('Error submitting leave request:', error);
+    alert('Error submitting leave request. Please try again.');
+  }
 });
 
 
@@ -931,11 +1130,362 @@ ${Object.keys(reportData.todayStatus).length > 0 ?
 }
 
 
+
+/* ===== LEAVE STATUS TOAST NOTIFICATIONS ===== */
+// Show toast notification for leave status updates
+function showLeaveStatusToast(notification) {
+  // Only show toast for recent notifications (within last 2 minutes)
+  const timeDiff = (new Date() - notification.timestamp) / (1000 * 60);
+  if (timeDiff > 2) return;
+  
+  const toast = document.createElement('div');
+  const isApproved = notification.status === 'approved';
+  
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, ${isApproved ? '#28a745, #20c997' : '#dc3545, #c82333'});
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    z-index: 1002;
+    max-width: 400px;
+    font-family: 'Poppins', sans-serif;
+    animation: slideIn 0.5s ease-out;
+    border-left: 5px solid ${isApproved ? '#1e7e34' : '#bd2130'};
+  `;
+  
+  toast.innerHTML = `
+    <div style="display: flex; align-items: flex-start; gap: 12px;">
+      <i class="fas ${notification.icon}" style="font-size: 24px; margin-top: 2px; opacity: 0.9;"></i>
+      <div style="flex: 1;">
+        <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px;">
+          ${notification.title}
+        </div>
+        <div style="font-size: 14px; line-height: 1.4; margin-bottom: 8px;">
+          ${notification.message}
+        </div>
+        <div style="font-size: 12px; opacity: 0.8;">
+          <i class="fas fa-clock"></i> ${notification.time}
+        </div>
+      </div>
+      <button onclick="this.parentElement.parentElement.remove()" 
+              style="background: none; border: none; color: white; font-size: 18px; 
+                     cursor: pointer; opacity: 0.7; padding: 0; width: 20px; height: 20px;"
+              onmouseover="this.style.opacity='1'" 
+              onmouseout="this.style.opacity='0.7'">
+        ×
+      </button>
+    </div>
+  `;
+  
+  // Add animation CSS if not already added
+  if (!document.querySelector('#toast-animations')) {
+    const style = document.createElement('style');
+    style.id = 'toast-animations';
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(toast);
+  
+  // Auto-remove after 8 seconds with slide out animation
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.style.animation = 'slideOut 0.3s ease-in';
+      setTimeout(() => {
+        if (toast.parentElement) {
+          toast.remove();
+        }
+      }, 300);
+    }
+  }, 8000);
+  
+  // Log the toast for debugging
+  console.log(`Showing toast for ${notification.status} leave request:`, notification.subject);
+}
+
+/* ===== DEBUG FUNCTIONS (for testing) ===== */
+// Debug function to manually test notification creation
+window.debugCreateTestNotification = async function(status = 'approved') {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      console.log('❌ No authenticated user for debug test');
+      alert('Please log in first');
+      return;
+    }
+    
+    console.log('🧪 Creating test notification for user:', user.uid);
+    
+    const testNotificationData = {
+      userId: user.uid,
+      type: 'leave_status',
+      title: `Leave Request ${status === 'approved' ? 'Approved ✅' : 'Rejected ❌'}`,
+      message: `Your leave request for JAVA on 2025-01-15 has been ${status} by Prof. Test Faculty.`,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      read: false,
+      icon: status === 'approved' ? 'fa-check-circle' : 'fa-times-circle',
+      color: status === 'approved' ? '#28a745' : '#dc3545',
+      relatedRequestId: 'test-request-id',
+      leaveDate: '2025-01-15',
+      subject: 'JAVA',
+      facultyName: 'Prof. Test Faculty',
+      status: status,
+      comment: 'This is a test notification for debugging.',
+      createdAt: new Date()
+    };
+    
+    console.log('📝 Test notification data:', testNotificationData);
+    
+    const notificationRef = await db.collection('notifications').add(testNotificationData);
+    console.log('✅ Test notification created with ID:', notificationRef.id);
+    
+    // Verify the notification was created
+    const createdDoc = await notificationRef.get();
+    if (createdDoc.exists) {
+      console.log('✅ Verification: Notification exists:', createdDoc.data());
+      alert(`✅ Test notification created successfully! ID: ${notificationRef.id}`);
+    } else {
+      console.error('❌ Verification failed: Notification was not created');
+      alert('❌ Test notification creation failed!');
+    }
+    
+    return notificationRef.id;
+  } catch (error) {
+    console.error('❌ Error creating test notification:', error);
+    alert(`❌ Error: ${error.message}`);
+    return null;
+  }
+};
+
+// Debug function to test Firebase connection
+window.debugTestFirebaseConnection = async function() {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      console.log('❌ No authenticated user');
+      return false;
+    }
+    
+    console.log('🧪 Testing Firebase connection...');
+    
+    // Test write access
+    const testData = {
+      test: true,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      userId: user.uid
+    };
+    
+    const testRef = await db.collection('test').add(testData);
+    console.log('✅ Write test successful, doc ID:', testRef.id);
+    
+    // Test read access
+    const readDoc = await testRef.get();
+    if (readDoc.exists) {
+      console.log('✅ Read test successful:', readDoc.data());
+    }
+    
+    // Clean up
+    await testRef.delete();
+    console.log('✅ Cleanup successful');
+    
+    alert('✅ Firebase connection test successful!');
+    return true;
+  } catch (error) {
+    console.error('❌ Firebase connection test failed:', error);
+    alert(`❌ Firebase connection test failed: ${error.message}`);
+    return false;
+  }
+};
+
+// Debug function to check notification permissions
+window.debugCheckNotificationPermissions = async function() {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      console.log('❌ No authenticated user');
+      return;
+    }
+    
+    console.log('🔐 Testing notification collection permissions...');
+    
+    // Test read permissions
+    try {
+      const readTest = await db.collection('notifications')
+        .where('userId', '==', user.uid)
+        .limit(1)
+        .get();
+      console.log('✅ Read permission test successful, docs found:', readTest.size);
+    } catch (readError) {
+      console.error('❌ Read permission test failed:', readError);
+    }
+    
+    // Test write permissions
+    try {
+      const writeTestData = {
+        userId: user.uid,
+        type: 'test',
+        message: 'Permission test',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        read: false
+      };
+      
+      const writeTest = await db.collection('notifications').add(writeTestData);
+      console.log('✅ Write permission test successful, doc ID:', writeTest.id);
+      
+      // Clean up
+      await writeTest.delete();
+      console.log('✅ Cleanup successful');
+      
+      alert('✅ Notification permissions test successful!');
+    } catch (writeError) {
+      console.error('❌ Write permission test failed:', writeError);
+      alert(`❌ Write permission test failed: ${writeError.message}`);
+    }
+  } catch (error) {
+    console.error('❌ Permission test error:', error);
+    alert(`❌ Permission test error: ${error.message}`);
+  }
+};
+
+// Debug function to check current user and notification listener status
+window.debugNotificationStatus = function() {
+  console.log('=== NOTIFICATION DEBUG STATUS ===');
+  console.log('Current user:', auth.currentUser ? {
+    uid: auth.currentUser.uid,
+    email: auth.currentUser.email
+  } : 'None');
+  console.log('Current notifications count:', notifications.length);
+  console.log('Notifications array:', notifications);
+  
+  if (auth.currentUser) {
+    // Test read access to notifications collection
+    db.collection('notifications')
+      .where('userId', '==', auth.currentUser.uid)
+      .limit(1)
+      .get()
+      .then(snapshot => {
+        console.log('Notification read test:', {
+          success: true,
+          size: snapshot.size,
+          empty: snapshot.empty
+        });
+      })
+      .catch(error => {
+        console.error('Notification read test failed:', error);
+      });
+  }
+};
+
+// Fallback notification query (simpler query without complex conditions)
+async function tryFallbackNotificationQuery() {
+  if (!auth.currentUser) {
+    console.log('❌ No current user for fallback query');
+    return;
+  }
+  
+  try {
+    console.log('🔍 Trying simple fallback notification query...');
+    
+    // Very basic query - just get notifications for this user
+    const snapshot = await db.collection('notifications')
+      .where('userId', '==', auth.currentUser.uid)
+      .limit(10)
+      .get();
+    
+    console.log('📊 Fallback query results:', {
+      size: snapshot.size,
+      empty: snapshot.empty
+    });
+    
+    if (!snapshot.empty) {
+      const fallbackNotifications = [];
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        console.log('📄 Found notification doc:', {
+          id: doc.id,
+          type: data.type,
+          status: data.status,
+          read: data.read,
+          message: data.message?.substring(0, 50) + '...'
+        });
+        
+        // Only include unread notifications
+        if (!data.read) {
+          const notification = {
+            id: doc.id,
+            icon: data.icon || 'fa-bell',
+            color: data.color || '#6c757d',
+            message: data.message || 'No message',
+            title: data.title || 'Notification',
+            timestamp: data.timestamp ? data.timestamp.toDate() : new Date(),
+            type: data.type || 'general',
+            status: data.status || '',
+            subject: data.subject || '',
+            leaveDate: data.leaveDate || '',
+            facultyName: data.facultyName || '',
+            comment: data.comment || ''
+          };
+          
+          notification.time = getTimeAgo(notification.timestamp);
+          fallbackNotifications.push(notification);
+        }
+      });
+      
+      console.log(`📥 Fallback found ${fallbackNotifications.length} unread notifications`);
+      
+      if (fallbackNotifications.length > 0) {
+        // Update the global notifications array and display
+        notifications = fallbackNotifications;
+        updateNotifications(notifications);
+        console.log('✅ Fallback notifications loaded successfully');
+      }
+    } else {
+      console.log('📭 No notifications found in fallback query');
+    }
+    
+  } catch (fallbackError) {
+    console.error('❌ Fallback notification query also failed:', fallbackError);
+    console.log('💡 You can test notification creation using debugCreateTestNotification()');
+  }
+}
+
+// Make debug functions available globally
+if (typeof window !== 'undefined') {
+  window.debugCreateTestNotification = window.debugCreateTestNotification;
+  window.debugNotificationStatus = window.debugNotificationStatus;
+  window.tryFallbackNotificationQuery = tryFallbackNotificationQuery;
+}
+
 /* ===== PAGE INITIALIZATION ===== */
 // Initialize page when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
   // Note: Logout function is already defined in HTML head section
-  updateCharts();
-  showLowAttendanceWarnings();
+  
+  // Only initialize charts after a small delay to ensure DOM is ready
+  setTimeout(() => {
+    updateCharts();
+    showLowAttendanceWarnings();
+  }, 100);
+  
+  // Add debug info to console
+  console.log('Student dashboard loaded. Debug functions available:');
+  console.log('- debugCreateTestNotification(status) - Create test notification');
+  console.log('- debugNotificationStatus() - Check notification system status');
+  console.log('- debugTestFirebaseConnection() - Test Firebase connection');
+  console.log('- debugCheckNotificationPermissions() - Test notification permissions');
 });
 
