@@ -2,236 +2,182 @@
 ==================================================
 FACULTY DASHBOARD CSS STYLESHEET
 ==================================================
-Author: Attendance Tracker System
-Description: Comprehensive styling for faculty dashboard
-Last Updated: 2024
-==================================================
 */
 
-/* ===== RESET AND BASE STYLES ===== */
+/* ===== BASE STYLES ===== */
+:root {
+    --primary-color: #007bff;
+    --primary-hover: #0056b3;
+    --success-color: #28a745;
+    --success-hover: #218838;
+    --danger-color: #dc3545;
+    --danger-hover: #c82333;
+    --light-bg: #f8f9fa;
+    --white-bg: #ffffff;
+    --text-color: #333;
+    --border-color: rgba(0, 0, 0, 0.1);
+}
+
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: 'Poppins', sans-serif;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
 }
 
 body {
-  color: #333;
-  padding: 20px;
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    color: var(--text-color);
+    padding: 20px;
+    background: var(--light-bg);
 }
 
-/* ===== LAYOUT COMPONENTS ===== */
+/* ===== LAYOUT & HEADER ===== */
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    font-size: 1.5rem;
 }
 
 .dashboard {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
 }
 
 .section {
-  background: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  flex: 1;
-  min-width: 300px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background: var(--white-bg);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
 }
 
-.quick-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 10px;
+h2 {
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: var(--primary-color);
 }
 
-.action-btn {
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  padding: 10px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  transition: background 0.3s ease;
+/* ===== BUTTONS & FORMS ===== */
+button, input, select {
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 0.9rem;
 }
 
-.action-btn:hover {
-  background: #0056b3;
+select, input[type="text"], input[type="date"], input[type="time"], input[type="number"] {
+    width: 100%;
 }
 
-/* ===== QR CODE STYLES ===== */
-.qr-form .form-group {
-  margin-bottom: 15px;
+button {
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+button:hover {
+    transform: translateY(-2px);
+}
+
+.theme-toggle {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
 }
 
 .generate-btn {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  cursor: pointer;
-  border-radius: 5px;
-  transition: background 0.3s ease;
+    background: var(--success-color);
+    color: white;
+    border: none;
+    width: 100%;
+    margin-top: 10px;
 }
-
 .generate-btn:hover {
-  background: #218838;
+    background: var(--success-hover);
 }
 
-.qr-info {
-  margin-top: 15px;
-  text-align: left;
-  font-size: 0.9rem;
-  color: #666;
+/* ===== QUICK ACTIONS ===== */
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
 }
 
-.qr-actions button {
-  margin-right: 10px;
+.action-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 500;
+}
+.action-btn i {
+    font-size: 1.5rem;
+}
+.action-btn:hover {
+    background: var(--primary-hover);
 }
 
-/* ===== ATTENDANCE STYLES ===== */
-.attendance-controls,
-.bulk-actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
+/* ===== LEAVE REQUESTS (DYNAMIC) ===== */
+#leaveRequestsList {
+    max-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.save-attendance-btn {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  cursor: pointer;
-  border-radius: 5px;
-  float: right;
-  transition: background 0.3s ease;
-}
-
-.save-attendance-btn:hover {
-  background: #0069d9;
-}
-
-/* ===== REPORT STYLES ===== */
-.report-summary {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 20px;
-}
-
-.summary-card {
-  text-align: center;
-}
-
-.summary-value {
-  font-size: 2rem;
-  font-weight: bold;
-}
-
-/* ===== STUDENT MANAGEMENT STYLES ===== */
-.student-search {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.students-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-}
-
-/* ===== LEAVE REQUEST STYLES ===== */
 .leave-request-item {
-  background: #f8f8f8;
-  padding: 15px;
-  border-radius: 5px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+    background: #f8f8f8;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 5px solid var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
 }
 
-.leave-info {
-  max-width: 70%;
+.leave-info h4 {
+    margin-bottom: 5px;
+}
+.leave-info p {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 2px 0;
 }
 
-.leave-actions button {
-  margin-left: 10px;
+.leave-actions {
+    display: flex;
+    gap: 10px;
 }
 
-.approve-btn {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 3px;
+.approve-btn, .reject-btn {
+    border: none;
+    color: white;
+    padding: 8px 12px;
 }
-
-.approve-btn:hover {
-  background: #218838;
-}
-
-.reject-btn {
-  background: #dc3545;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 3px;
-}
-
-.reject-btn:hover {
-  background: #c82333;
-}
-
-/* ===== SCHEDULE STYLES ===== */
-.schedule-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.schedule-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #f1f1f1;
-  padding: 10px;
-  border-radius: 5px;
-}
-
-.schedule-status.completed {
-  color: #28a745;
-}
-
-.schedule-status.ongoing {
-  color: #ffc107;
-}
-
-.schedule-status.upcoming {
-  color: #007bff;
-}
-
-/* ===== MEDIA QUERIES ===== */
-@media screen and (max-width: 768px) {
-  .quick-actions-grid {
-    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-  }
-}
-
-/* 
-==================================================
-END OF FACULTY DASHBOARD CSS 
-==================================================
-*/
+.approve-btn { background: var(--success-color); }
+.approve-btn:hover { background: var(--success-hover); }
+.reject-btn { background: var(--danger-color); }
+.reject-btn:hover { background: var(--danger-hover); }

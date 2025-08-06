@@ -450,12 +450,15 @@ form {
 
     // Validate email format based on role
     const studentRegex = /@pwioi\.com$/i;
-    const facultyRegex = /@pw\.live$/i;
+    // const facultyRegex = /@pw\.live$/i;
+    
+    const facultyRegex = /@gmail\.com$/i;
+    
     const validStudent = studentRegex.test(email);
     const validFaculty = facultyRegex.test(email);
 
     if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
-      alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+      alert(`Only ${role === "student" ? "@pwioi.com" : "@gmail.com"} emails allowed for ${role}s.`);
       return;
     }
 
@@ -486,12 +489,13 @@ submitBtn.onclick = async () => {
     if (!role) return alert("Please select your role first");
 
     const studentRegex = /@pwioi\.com$/i;
-    const facultyRegex = /@pw\.live$/i;
+    // const facultyRegex = /@pw\.live$/i;
+    const facultyRegex = /@gmail\.com$/i;
     const validStudent = studentRegex.test(email);
     const validFaculty = facultyRegex.test(email);
 
     if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
-      alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
+      alert(`Only ${role === "student" ? "@pwioi.com" : "@gmail.com"} emails allowed for ${role}s.`);
       return;
     }
 

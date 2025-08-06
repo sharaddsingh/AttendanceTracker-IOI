@@ -81,34 +81,6 @@ function updateCharts() {
   });
 }
 
-// Today's class schedule data
-let todayClassSchedule = {
-  'Monday': [
-    { subject: 'JAVA', time: '09:00-10:00', topic: 'Object Oriented Programming', room: 'Room 101', faculty: 'Prof. Smith' },
-    { subject: 'DSA', time: '10:15-11:15', topic: 'Data Structures & Algorithms', room: 'Room 102', faculty: 'Prof. Johnson' },
-    { subject: 'DBMS', time: '11:30-12:30', topic: 'Database Management', room: 'Room 103', faculty: 'Prof. Wilson' },
-    { subject: 'EXCEL', time: '13:30-14:30', topic: 'Advanced Excel', room: 'Lab 201', faculty: 'Prof. Davis' }
-  ],
-  'Tuesday': [
-    { subject: 'JAVASCRIPT', time: '09:00-10:00', topic: 'Web Development', room: 'Lab 301', faculty: 'Prof. Brown' },
-    { subject: 'PYTHON', time: '10:15-11:15', topic: 'Python Programming', room: 'Lab 302', faculty: 'Prof. Taylor' },
-    { subject: 'MASTERCLASS', time: '11:30-12:30', topic: 'Industry Insights', room: 'Auditorium', faculty: 'Guest Speaker' }
-  ],
-  'Wednesday': [
-    { subject: 'JAVA', time: '09:00-10:00', topic: 'Advanced Java Concepts', room: 'Room 101', faculty: 'Prof. Smith' },
-    { subject: 'DSA', time: '10:15-11:15', topic: 'Advanced Algorithms', room: 'Room 102', faculty: 'Prof. Johnson' },
-    { subject: 'BUSINESS COMMUNICATION', time: '11:30-12:30', topic: 'Professional Communication', room: 'Room 201', faculty: 'Prof. Anderson' }
-  ],
-  'Thursday': [
-    { subject: 'DBMS', time: '09:00-10:00', topic: 'Advanced Database Concepts', room: 'Room 103', faculty: 'Prof. Wilson' },
-    { subject: 'JAVASCRIPT', time: '10:15-11:15', topic: 'Advanced JS & Frameworks', room: 'Lab 301', faculty: 'Prof. Brown' },
-    { subject: 'CRITICAL COMMUNICATION', time: '11:30-12:30', topic: 'Critical Thinking', room: 'Room 202', faculty: 'Prof. Lee' }
-  ],
-  'Friday': [
-    { subject: 'PYTHON', time: '09:00-10:00', topic: 'Python Projects', room: 'Lab 302', faculty: 'Prof. Taylor' },
-    { subject: 'EXCEL', time: '10:15-11:15', topic: 'Data Analysis with Excel', room: 'Lab 201', faculty: 'Prof. Davis' }
-  ]
-};
 
 // Today's attendance status (initially all pending)
 let todayAttendanceStatus = {};
