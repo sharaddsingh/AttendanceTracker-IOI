@@ -11,8 +11,75 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-storage-compat.js"></script>
 </head>
 <body>
+
+    <!-- Faculty Profile Completion Popup -->
+    <div class="profile-popup" id="facultyProfilePopup">
+        <div class="profile-content">
+            <h3 style="color: black; margin-bottom: 15px;">
+                <i class="fas fa-chalkboard-teacher"></i> Complete Your Faculty Profile
+            </h3>
+            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                Please complete your profile to access all dashboard features and start taking attendance.
+            </p>
+            
+            <form id="facultyProfileForm" style="color: black;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Full Name *</label>
+                    <input type="text" id="facultyFullName" required 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; color: black;" 
+                           placeholder="Enter your full name">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Employee ID *</label>
+                    <input type="text" id="facultyEmployeeId" required 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; color: black;" 
+                           placeholder="Enter employee ID">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Department(s) * (Select multiple)</label>
+                    <div id="departmentCheckboxes" style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
+                        <div class="department-checkbox-item" style="display: flex; align-items: center; padding: 8px; border-radius: 4px; background: white; border: 1px solid #e0e0e0; margin-bottom: 8px; transition: all 0.2s ease;">
+                            <input type="checkbox" id="dept_technology" value="School of Technology" style="margin-right: 8px; transform: scale(1.1);">
+                            <label for="dept_technology" style="font-size: 14px; font-weight: 400; margin: 0; cursor: pointer; flex: 1;">School of Technology</label>
+                        </div>
+                        <div class="department-checkbox-item" style="display: flex; align-items: center; padding: 8px; border-radius: 4px; background: white; border: 1px solid #e0e0e0; transition: all 0.2s ease;">
+                            <input type="checkbox" id="dept_management" value="School of Management" style="margin-right: 8px; transform: scale(1.1);">
+                            <label for="dept_management" style="font-size: 14px; font-weight: 400; margin: 0; cursor: pointer; flex: 1;">School of Management</label>
+                        </div>
+                    </div>
+                    <p style="color: #999; font-size: 12px; margin-top: 5px;">Select at least one department</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Subjects You Teach * (Select multiple)</label>
+                    <div id="subjectsCheckboxes" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
+                        <!-- Subjects will be populated dynamically -->
+                    </div>
+                    <p style="color: #999; font-size: 12px; margin-top: 5px;">Select at least one subject</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">Phone Number *</label>
+                    <input type="tel" id="facultyPhone" required 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; color: black;" 
+                           placeholder="Enter phone number">
+                </div>
+
+                <div style="text-align: center;">
+                    <button type="submit" 
+                            style="background: #28a745; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 16px;">
+                        <i class="fas fa-check"></i> Complete Profile
+                    </button>
+                    <p style="color: #999; font-size: 12px; margin-top: 10px;">Profile completion is mandatory to access dashboard features</p>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <div class="header">
         <div>
