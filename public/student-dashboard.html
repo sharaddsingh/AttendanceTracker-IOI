@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
@@ -153,6 +154,36 @@
       </div>
     </div>
 
+    <!-- QR Scanner Section -->
+    <div class="section qr-scanner-section">
+      <h2><i class="fas fa-qrcode"></i> Scan QR for Attendance</h2>
+      <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Scan the QR code displayed by your faculty to mark attendance</p>
+      
+      <div class="qr-scanner-container">
+        <button id="openScannerBtn" class="scanner-btn" onclick="openQRScanner()">
+          <i class="fas fa-camera"></i>
+          Open QR Scanner
+        </button>
+        
+        <div id="scannerModal" class="scanner-modal" style="display: none;">
+          <div class="scanner-modal-content">
+            <div class="scanner-header">
+              <h3><i class="fas fa-qrcode"></i> QR Code Scanner</h3>
+              <span class="scanner-close" onclick="closeQRScanner()">&times;</span>
+            </div>
+            
+            <div class="scanner-body">
+              <div id="qrReader" class="qr-reader"></div>
+              <div class="scanner-instructions">
+                <p>Position the QR code within the frame to scan</p>
+                <p style="font-size: 12px; color: #666;">Make sure you're in the correct class and the QR code is not expired</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="section" id="overallSection">
       <h2><i class="fas fa-chart-pie"></i> Overall Attendance</h2>
       <canvas id="overallChart" style="display: none;"></canvas>
@@ -231,6 +262,43 @@
 
   </div>
 
+  <!-- Attendance Confirmation Modal -->
+  <div id="attendanceModal" class="attendance-modal" style="display: none;">
+    <div class="attendance-modal-content">
+      <div class="attendance-modal-header">
+        <h3><i class="fas fa-check-circle"></i> Confirm Attendance</h3>
+        <span class="attendance-close" onclick="closeAttendanceModal()">&times;</span>
+      </div>
+      
+      <div class="attendance-modal-body">
+        <div class="attendance-info">
+          <div class="qr-success-icon">
+            <i class="fas fa-qrcode"></i>
+          </div>
+          <h4>QR Code Scanned Successfully!</h4>
+          <div class="session-info">
+            <p><strong>Subject:</strong> <span id="confirmSubject"></span></p>
+            <p><strong>Faculty:</strong> <span id="confirmFaculty"></span></p>
+            <p><strong>School:</strong> <span id="confirmSchool"></span></p>
+            <p><strong>Batch:</strong> <span id="confirmBatch"></span></p>
+            <p><strong>Periods:</strong> <span id="confirmPeriods"></span></p>
+            <p><strong>Date:</strong> <span id="confirmDate"></span></p>
+          </div>
+        </div>
+        
+        <div class="attendance-actions">
+          <button id="markAttendanceBtn" class="mark-attendance-btn" onclick="markAttendance()">
+            <i class="fas fa-user-check"></i>
+            MARK ATTENDANCE
+          </button>
+          <button class="cancel-btn" onclick="closeAttendanceModal()">
+            <i class="fas fa-times"></i>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <!-- Link external CSS file -->
   <link rel="stylesheet" href="css/student-dashboard.css">

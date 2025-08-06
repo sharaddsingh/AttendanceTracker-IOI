@@ -56,6 +56,12 @@ function showLowAttendanceWarnings() {
 let subjectChart = null;
 let overallChart = null;
 
+// QR Scanner variables
+let html5QrCode = null;
+let currentScannedData = null;
+let currentUser = null;
+let studentProfile = null;
+
 // Function to update all charts with current data
 function updateCharts() {
   // Destroy existing charts before creating new ones
@@ -1469,6 +1475,254 @@ if (typeof window !== 'undefined') {
   window.debugNotificationStatus = window.debugNotificationStatus;
   window.tryFallbackNotificationQuery = tryFallbackNotificationQuery;
 }
+
+/* ===== QR SCANNER FUNCTIONS ===== */
+// Open QR Scanner Modal
+function openQRScanner() {
+  const modal = document.getElementById('scannerModal');
+  const videoElement = document.getElementById('qrReader');
+  
+  console.log('QR Scanner elements check:', {
+    modal: !!modal,
+    videoElement: !!videoElement
+  });
+  
+  if (!modal || !videoElement) {
+    console.error('QR Scanner modal or video element not found');
+    console.error('Modal found:', !!modal, 'Video element found:', !!videoElement);
+    showNotification('Scanner Error', 'QR Scanner is not properly configured.');
+    return;
+  }
+  
+  console.log('Opening QR Scanner...');
+  modal.style.display = 'flex';
+  
+  // Initialize the QR code scanner
+  try {
+    html5QrCode = new Html5Qrcode("qrReader");
+    
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0
+    };
+    
+    // Start scanning
+    html5QrCode.start(
+      { facingMode: "environment" }, // Use back camera
+      config,
+      onScanSuccess,
+      onScanError
+    ).then(() => {
+      console.log('QR Scanner started successfully');
+      // Update UI
+      document.getElementById('scannerStatus').textContent = 'Scanner active - Point camera at QR code';
+      document.getElementById('scannerStatus').style.color = '#28a745';
+    }).catch(err => {
+      console.error('Error starting QR scanner:', err);
+      // Fallback to user camera if environment camera fails
+      return html5QrCode.start(
+        { facingMode: "user" },
+        config,
+        onScanSuccess,
+        onScanError
+      );
+    }).catch(err => {
+      console.error('Error starting QR scanner with user camera:', err);
+      document.getElementById('scannerStatus').textContent = 'Camera access denied or unavailable';
+      document.getElementById('scannerStatus').style.color = '#dc3545';
+      showNotification('Scanner Error', 'Unable to access camera. Please check permissions.');
+    });
+  } catch (error) {
+    console.error('Error initializing QR scanner:', error);
+    showNotification('Scanner Error', 'Failed to initialize QR scanner.');
+  }
+}
+
+// Close QR Scanner Modal
+function closeQRScanner() {
+  const modal = document.getElementById('scannerModal');
+  
+  console.log('Closing QR Scanner...');
+  
+  // Stop the scanner if it's running
+  if (html5QrCode) {
+    html5QrCode.stop().then(() => {
+      console.log('QR Scanner stopped successfully');
+      html5QrCode = null;
+    }).catch(err => {
+      console.error('Error stopping QR scanner:', err);
+      html5QrCode = null;
+    });
+  }
+  
+  // Hide the modal
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  
+  // Reset UI elements (only if they exist)
+  const scannerStatus = document.getElementById('scannerStatus');
+  if (scannerStatus) {
+    scannerStatus.textContent = 'Scanner inactive';
+    scannerStatus.style.color = '#6c757d';
+  }
+  
+  // Clear any scanned data
+  currentScannedData = null;
+}
+
+// Handle successful QR scan
+function onScanSuccess(decodedText, decodedResult) {
+  console.log('QR Code scanned successfully:', decodedText);
+  
+  try {
+    // Parse the QR code data
+    const qrData = JSON.parse(decodedText);
+    
+    // Validate QR code structure
+    if (!qrData.school || !qrData.batch || !qrData.subject || !qrData.periods || !qrData.timestamp || !qrData.expiry) {
+      throw new Error('Invalid QR code format');
+    }
+    
+    // Check if QR code has expired
+    const now = Date.now();
+    if (now > qrData.expiry) {
+      showNotification('QR Expired', 'This QR code has expired. Ask your faculty to generate a new one.');
+      return;
+    }
+    
+    // Store scanned data
+    currentScannedData = qrData;
+    
+    // Close scanner and show confirmation
+    closeQRScanner();
+    
+    // Show success notification with details
+    const timeLeft = Math.ceil((qrData.expiry - now) / 1000);
+    showNotification(
+      'QR Scanned Successfully!',
+      `Subject: ${qrData.subject} | Batch: ${qrData.batch} | Periods: ${qrData.periods}`
+    );
+    
+    console.log('QR Data:', qrData);
+    
+    // Automatically mark attendance
+    markAttendance(qrData);
+    
+  } catch (error) {
+    console.error('Error processing QR code:', error);
+    showNotification('Invalid QR Code', 'The scanned QR code is not valid for attendance marking.');
+  }
+}
+
+// Handle scan errors (don't show for every frame)
+function onScanError(error) {
+  // Only log errors, don't show notifications for scanning errors
+  // as they happen frequently during normal scanning
+  if (error.includes('NotFoundException')) {
+    // This is normal - no QR code found in frame
+    return;
+  }
+  console.log('QR Scan error:', error);
+}
+
+// Mark attendance based on scanned QR data
+async function markAttendance(qrData) {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      showNotification('Authentication Required', 'Please log in to mark attendance.');
+      return;
+    }
+    
+    // Get student profile data
+    const savedProfile = localStorage.getItem('studentProfile');
+    let studentProfile = {};
+    if (savedProfile) {
+      studentProfile = JSON.parse(savedProfile);
+    }
+    
+    // Validate student belongs to the same batch/school as QR code
+    if (studentProfile.school && studentProfile.school !== qrData.school) {
+      showNotification('Invalid QR Code', 'This QR code is not for your school.');
+      return;
+    }
+    
+    if (studentProfile.batch && studentProfile.batch !== qrData.batch) {
+      showNotification('Invalid QR Code', 'This QR code is not for your batch.');
+      return;
+    }
+    
+    // Check if already marked attendance for this session
+    const today = new Date().toISOString().slice(0, 10);
+    const attendanceQuery = await db.collection('attendances')
+      .where('userId', '==', user.uid)
+      .where('date', '==', today)
+      .where('subject', '==', qrData.subject)
+      .get();
+    
+    if (!attendanceQuery.empty) {
+      showNotification('Already Marked', `Attendance already recorded for ${qrData.subject} today.`);
+      return;
+    }
+    
+    // Create attendance record
+    const attendanceData = {
+      userId: user.uid,
+      studentEmail: user.email,
+      studentName: studentProfile.fullName || extractNameFromEmail(user.email),
+      regNumber: studentProfile.regNumber || 'N/A',
+      school: qrData.school,
+      batch: qrData.batch,
+      subject: qrData.subject,
+      periods: qrData.periods,
+      date: today,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      status: 'present',
+      markedAt: new Date(),
+      qrTimestamp: qrData.timestamp,
+      scanDelay: Date.now() - qrData.timestamp
+    };
+    
+    // Save to Firebase
+    const docRef = await db.collection('attendances').add(attendanceData);
+    console.log('Attendance marked with ID:', docRef.id);
+    
+    // Show success notification
+    showNotification(
+      'Attendance Marked! ✓',
+      `Present for ${qrData.subject} (${qrData.periods} periods) - ${today}`
+    );
+    
+    // Add to local notifications
+    addNotification(
+      'attendance',
+      `Attendance marked for ${qrData.subject} - ${qrData.periods} periods`,
+      'Just now'
+    );
+    
+    // Update local attendance data (simulate increase)
+    if (subjectData[qrData.subject]) {
+      subjectData[qrData.subject] = Math.min(100, subjectData[qrData.subject] + 2);
+      updateCharts();
+      showLowAttendanceWarnings();
+    }
+    
+    // Refresh today's attendance display
+    if (auth.currentUser) {
+      fetchTodayAttendance(auth.currentUser);
+    }
+    
+  } catch (error) {
+    console.error('Error marking attendance:', error);
+    showNotification('Error', 'Failed to mark attendance. Please try again.');
+  }
+}
+
+// Global functions to be called from HTML
+window.openQRScanner = openQRScanner;
+window.closeQRScanner = closeQRScanner;
 
 /* ===== PAGE INITIALIZATION ===== */
 // Initialize page when DOM is ready

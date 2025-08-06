@@ -10,6 +10,9 @@ let facultyProfile = null;
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Check QRCode library availability
+    checkQRCodeLibrary();
+    
     // Populate subjects checkboxes
     populateSubjectsCheckboxes();
     
@@ -25,6 +28,77 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Check if QRCode library is loaded, if not try to load it dynamically
+function checkQRCodeLibrary() {
+    console.log('Checking QRCode library...');
+    
+    if (typeof QRCode !== 'undefined') {
+        console.log('✅ QRCode library is loaded');
+        return;
+    }
+    
+    console.warn('⚠️ QRCode library not found, attempting to load fallback...');
+    
+    // Try to load from a different CDN as fallback
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
+    script.onload = () => {
+        console.log('✅ QRCode fallback library loaded successfully');
+    };
+    script.onerror = () => {
+        console.error('❌ Failed to load QRCode fallback library');
+        // Try one more CDN
+        const script2 = document.createElement('script');
+        script2.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+        script2.onload = () => {
+            console.log('✅ Alternative QRCode library loaded');
+            // This library has different API, so we need to create a wrapper
+            if (typeof QRCode === 'undefined' && typeof qrcode !== 'undefined') {
+                window.QRCode = {
+                    toCanvas: (canvas, text, options, callback) => {
+                        try {
+                            const qr = qrcode(0, 'M');
+                            qr.addData(text);
+                            qr.make();
+                            
+                            const ctx = canvas.getContext('2d');
+                            const size = options.width || 256;
+                            canvas.width = size;
+                            canvas.height = size;
+                            
+                            // Simple QR code rendering (basic implementation)
+                            const moduleCount = qr.getModuleCount();
+                            const cellSize = size / moduleCount;
+                            
+                            ctx.fillStyle = options.colorLight || '#ffffff';
+                            ctx.fillRect(0, 0, size, size);
+                            
+                            ctx.fillStyle = options.colorDark || '#000000';
+                            for (let row = 0; row < moduleCount; row++) {
+                                for (let col = 0; col < moduleCount; col++) {
+                                    if (qr.isDark(row, col)) {
+                                        ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                                    }
+                                }
+                            }
+                            
+                            if (callback) callback(null);
+                        } catch (error) {
+                            if (callback) callback(error);
+                        }
+                    },
+                    CorrectLevel: { M: 'M' }
+                };
+            }
+        };
+        script2.onerror = () => {
+            console.error('❌ All QRCode library loading attempts failed');
+        };
+        document.head.appendChild(script2);
+    };
+    document.head.appendChild(script);
+}
 
 function initializeFacultyDashboard() {
     setupEventListeners();
@@ -275,24 +349,51 @@ let qrTimeRemaining = 30;
  * Opens the QR generation modal
  */
 function openQRModal() {
+    console.log('openQRModal called');
+    
     const modal = document.getElementById('qrModal');
     const form = document.getElementById('qrForm');
     const qrCodeDisplay = document.getElementById('qrCodeDisplay');
     
+    console.log('Modal elements found:', {
+        modal: !!modal,
+        form: !!form,
+        qrCodeDisplay: !!qrCodeDisplay
+    });
+    
+    if (!modal) {
+        console.error('QR Modal not found!');
+        alert('QR Modal not found. Please check the HTML.');
+        return;
+    }
+    
     // Reset modal state
-    form.style.display = 'block';
-    qrCodeDisplay.style.display = 'none';
-    form.reset();
+    if (form) {
+        form.style.display = 'block';
+    }
+    if (qrCodeDisplay) {
+        qrCodeDisplay.style.display = 'none';
+    }
+    
+    // Reset form if it exists
+    const formElement = form && form.tagName === 'FORM' ? form : document.querySelector('#qrModal form');
+    if (formElement) {
+        formElement.reset();
+    }
     
     // Reset batch dropdown
     const batchSelect = document.getElementById('qrBatch');
-    batchSelect.innerHTML = '<option value="">Select Batch</option>';
-    batchSelect.disabled = true;
+    if (batchSelect) {
+        batchSelect.innerHTML = '<option value="">Select Batch</option>';
+        batchSelect.disabled = true;
+    } else {
+        console.warn('qrBatch select not found');
+    }
     
     // Show modal
     modal.style.display = 'block';
     
-    console.log('QR Modal opened');
+    console.log('QR Modal opened successfully');
 }
 
 /**
@@ -340,10 +441,22 @@ function updateBatchOptions() {
  * Generates and displays a QR code for attendance with 30-second timer
  */
 function generateQRCode() {
+    console.log('generateQRCode called');
+    console.log('QRCode library available:', typeof QRCode);
+    
+    // Check if QRCode library is loaded
+    if (typeof QRCode === 'undefined') {
+        console.error('QRCode library not loaded!');
+        alert('QRCode library is not loaded. Please refresh the page and try again.');
+        return;
+    }
+    
     const school = document.getElementById('qrSchool').value;
     const batch = document.getElementById('qrBatch').value;
     const subject = document.getElementById('qrSubject').value;
     const periods = document.getElementById('qrPeriods').value;
+    
+    console.log('Form values:', { school, batch, subject, periods });
     
     // Validation
     if (!school || !batch || !subject || !periods) {
@@ -364,6 +477,7 @@ function generateQRCode() {
     
     // Create unique session ID and QR data
     const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = Date.now();
     const qrData = {
         sessionId: sessionId,
         school: school,
@@ -372,34 +486,50 @@ function generateQRCode() {
         periods: parseInt(periods),
         facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
         facultyId: currentFaculty.uid,
-        timestamp: new Date().toISOString(),
+        timestamp: now,
+        expiry: now + (30 * 1000), // 30 seconds from now
         validFor: 30, // 30 seconds
         redirectUrl: window.location.origin + '/student-dashboard.html'
     };
+    
+    console.log('Generated QR Data:', qrData);
     
     // Generate QR Code
     const qrCanvas = document.getElementById('qrCodeCanvas');
     const qrDataString = JSON.stringify(qrData);
     
-    QRCode.toCanvas(qrCanvas, qrDataString, { 
-        width: 256,
-        height: 256,
-        colorDark: '#000000',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-    }, (error) => {
-        if (error) {
-            console.error('QR Code generation error:', error);
-            alert('Failed to generate QR code. Please try again.');
-            return;
-        }
-        
-        console.log('QR Code generated successfully!');
-        console.log('QR Data:', qrData);
-        
-        // Start 30-second countdown timer
-        startQRTimer();
-    });
+    console.log('QR Data String length:', qrDataString.length);
+    
+    try {
+        QRCode.toCanvas(qrCanvas, qrDataString, { 
+            width: 256,
+            height: 256,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        }, (error) => {
+            if (error) {
+                console.error('QR Code generation error:', error);
+                alert('Failed to generate QR code. Please try again.');
+                // Show the form again on error
+                document.getElementById('qrForm').style.display = 'block';
+                document.getElementById('qrCodeDisplay').style.display = 'none';
+                return;
+            }
+            
+            console.log('QR Code generated successfully!');
+            console.log('QR Data:', qrData);
+            
+            // Start 30-second countdown timer
+            startQRTimer();
+        });
+    } catch (qrError) {
+        console.error('QRCode.toCanvas error:', qrError);
+        alert('Error generating QR code: ' + qrError.message);
+        // Show the form again on error
+        document.getElementById('qrForm').style.display = 'block';
+        document.getElementById('qrCodeDisplay').style.display = 'none';
+    }
 }
 
 /**
@@ -475,6 +605,13 @@ window.onclick = function(event) {
         closeQRModal();
     }
 }
+
+// Make functions globally accessible
+window.openQRModal = openQRModal;
+window.closeQRModal = closeQRModal;
+window.generateQRCode = generateQRCode;
+window.updateBatchOptions = updateBatchOptions;
+window.regenerateQR = regenerateQR;
 
 /**
  * Legacy QR generation function - kept for backward compatibility
@@ -757,17 +894,28 @@ function showFacultyWelcome(profileData) {
  */
 function populateSubjectOptions(subjects) {
     const subjectSelect = document.getElementById('subjectSelect');
+    const qrSubjectSelect = document.getElementById('qrSubject');
     
-    // Clear existing options except the first one
-    subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+    // Clear existing options except the first one for both selects
+    if (subjectSelect) {
+        subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        subjects.forEach(subject => {
+            const option = document.createElement('option');
+            option.value = subject;
+            option.textContent = subject;
+            subjectSelect.appendChild(option);
+        });
+    }
     
-    // Add faculty's subjects
-    subjects.forEach(subject => {
-        const option = document.createElement('option');
-        option.value = subject;
-        option.textContent = subject;
-        subjectSelect.appendChild(option);
-    });
+    if (qrSubjectSelect) {
+        qrSubjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        subjects.forEach(subject => {
+            const option = document.createElement('option');
+            option.value = subject;
+            option.textContent = subject;
+            qrSubjectSelect.appendChild(option);
+        });
+    }
 }
 
 /**

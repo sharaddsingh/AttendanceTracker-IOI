@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
@@ -81,6 +81,95 @@
         </div>
     </div>
 
+    <!-- QR Generation Modal -->
+    <div id="qrModal" class="qr-modal" style="display: none;">
+        <div class="qr-modal-content">
+            <div class="qr-modal-header">
+                <h3><i class="fas fa-qrcode"></i> Generate Attendance QR Code</h3>
+                <span class="qr-close" onclick="closeQRModal()">&times;</span>
+            </div>
+            
+            <!-- QR Form -->
+            <div id="qrForm" class="qr-form">
+                <div class="form-group">
+                    <label for="qrSchool">School:</label>
+                    <select id="qrSchool" onchange="updateBatchOptions()" required>
+                        <option value="">Select School</option>
+                        <option value="School of Technology">School of Technology</option>
+                        <option value="School of Management">School of Management</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="qrBatch">Batch:</label>
+                    <select id="qrBatch" required disabled>
+                        <option value="">Select Batch</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="qrSubject">Subject:</label>
+                    <select id="qrSubject" required>
+                        <option value="">Select Subject</option>
+                        <!-- Will be populated from faculty profile -->
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="qrPeriods">Number of Periods:</label>
+                    <select id="qrPeriods" required>
+                        <option value="">Select Periods</option>
+                        <option value="1">1 Period</option>
+                        <option value="2">2 Periods</option>
+                        <option value="3">3 Periods</option>
+                        <option value="4">4 Periods</option>
+                    </select>
+                </div>
+                
+                <button onclick="generateQRCode()" class="generate-btn">
+                    <i class="fas fa-magic"></i> Load QR Code
+                </button>
+            </div>
+            
+            <!-- QR Code Display -->
+            <div id="qrCodeDisplay" class="qr-display" style="display: none;">
+                <div class="qr-info">
+                    <h4>Attendance QR Code</h4>
+                    <div class="session-details">
+                        <p><strong>School:</strong> <span id="displaySchool"></span></p>
+                        <p><strong>Batch:</strong> <span id="displayBatch"></span></p>
+                        <p><strong>Subject:</strong> <span id="displaySubject"></span></p>
+                        <p><strong>Periods:</strong> <span id="displayPeriods"></span></p>
+                    </div>
+                </div>
+                
+                <div class="qr-code-container">
+                    <canvas id="qrCodeCanvas"></canvas>
+                </div>
+                
+                <div class="qr-timer-container">
+                    <div class="timer-display">
+                        <span>Expires in: </span>
+                        <span id="qrTimer" class="timer">30</span>
+                        <span> seconds</span>
+                    </div>
+                    <div id="qrStatus" class="qr-status">
+                        <p>QR Code is active. Students can scan to mark attendance.</p>
+                    </div>
+                </div>
+                
+                <div class="qr-actions">
+                    <button onclick="regenerateQR()" class="regenerate-btn" style="display: none;">
+                        <i class="fas fa-redo"></i> Generate New QR
+                    </button>
+                    <button onclick="closeQRModal()" class="close-btn">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="header">
         <div class="header-top">
             <h1><i class="fas fa-chalkboard-teacher"></i> Faculty Dashboard</h1>
@@ -98,7 +187,7 @@
         <div class="section">
             <h2><i class="fas fa-bolt"></i> Quick Actions</h2>
             <div class="quick-actions-grid">
-                <button class="action-btn generate-qr" onclick="showSection('qrSection')">
+                <button class="action-btn generate-qr" onclick="openQRModal()">
                     <i class="fas fa-qrcode"></i>
                     <span>Generate QR</span>
                 </button>
