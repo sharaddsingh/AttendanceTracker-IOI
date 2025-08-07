@@ -177,6 +177,53 @@
               <div class="scanner-instructions">
                 <p>Position the QR code within the frame to scan</p>
                 <p style="font-size: 12px; color: #666;">Make sure you're in the correct class and the QR code is not expired</p>
+                <p id="scannerStatus" style="font-size: 14px; color: #6c757d; margin-top: 10px;">Scanner inactive</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Photo Capture Modal -->
+        <div id="photoCaptureModal" class="scanner-modal" style="display: none;">
+          <div class="scanner-modal-content">
+            <div class="scanner-header">
+              <h3><i class="fas fa-camera"></i> Photo Verification</h3>
+              <span class="scanner-close" onclick="closePhotoCaptureModal()">&times;</span>
+            </div>
+            
+            <div class="scanner-body">
+              <div id="photoCapture" class="photo-capture-container">
+                <div id="photoCaptureView" class="photo-view">
+                  <video id="photoCaptureVideo" autoplay muted></video>
+                  <canvas id="photoCaptureCanvas" style="display: none;"></canvas>
+                  <div id="capturedPhotoPreview" class="captured-photo" style="display: none;">
+                    <img id="capturedPhotoImg" alt="Captured Photo">
+                  </div>
+                </div>
+                
+                <div class="photo-instructions">
+                  <div id="photoInstructionsText">
+                    <p><strong>Photo Verification Required</strong></p>
+                    <p style="font-size: 14px;">Position your face within the frame for verification</p>
+                    <p style="font-size: 12px; color: #666;">This photo will be saved with your attendance record</p>
+                  </div>
+                  <div id="photoStatus" style="font-size: 14px; color: #6c757d; margin-top: 10px;">Camera inactive</div>
+                </div>
+                
+                <div class="photo-actions">
+                  <button id="capturePhotoBtn" class="capture-btn" onclick="captureStudentPhoto()" style="display: none;">
+                    <i class="fas fa-camera"></i>
+                    Capture Photo
+                  </button>
+                  <button id="retakePhotoBtn" class="retake-btn" onclick="retakePhoto()" style="display: none;">
+                    <i class="fas fa-redo"></i>
+                    Retake
+                  </button>
+                  <button id="confirmPhotoBtn" class="confirm-btn" onclick="confirmPhotoAndMarkAttendance()" style="display: none;">
+                    <i class="fas fa-check"></i>
+                    Confirm & Mark Attendance
+                  </button>
+                </div>
               </div>
             </div>
           </div>

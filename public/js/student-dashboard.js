@@ -18,18 +18,61 @@ STUDENT DASHBOARD JAVASCRIPT - CLEANED VERSION
 // Attendance Data - will be populated from Firebase
 let subjectData = {};
 
-// Function to fetch real-time attendance data
+// Function to fetch real-time attendance data and calculate percentages
 function fetchAttendanceData() {
+  if (!auth.currentUser) {
+    console.log('No authenticated user for attendance data fetch');
+    return;
+  }
+
   db.collection('attendances').where('userId', '==', auth.currentUser.uid)
     .onSnapshot(snapshot => {
-      let data = {};
+      console.log(`Fetching attendance data: ${snapshot.size} records found`);
+      
+      // Calculate attendance percentages by subject
+      const subjectStats = {};
+      
       snapshot.forEach(doc => {
-        const { subject, percentage } = doc.data();
-        data[subject] = percentage;
+        const data = doc.data();
+        const { subject, status } = data;
+        
+        if (!subject) return; // Skip if no subject
+        
+        // Initialize subject stats if not exists
+        if (!subjectStats[subject]) {
+          subjectStats[subject] = {
+            total: 0,
+            present: 0
+          };
+        }
+        
+        // Count total classes and present classes
+        subjectStats[subject].total++;
+        if (status === 'present') {
+          subjectStats[subject].present++;
+        }
       });
+      
+      // Calculate percentages
+      const data = {};
+      Object.keys(subjectStats).forEach(subject => {
+        const stats = subjectStats[subject];
+        const percentage = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+        data[subject] = percentage;
+        console.log(`${subject}: ${stats.present}/${stats.total} = ${percentage}%`);
+      });
+      
       subjectData = data;
       updateCharts();
       showLowAttendanceWarnings();
+      
+      // Update charts visibility based on data availability
+      updateChartsVisibility();
+    }, error => {
+      console.error('Error fetching attendance data:', error);
+      // Don't break the app, just log the error
+      subjectData = {};
+      updateChartsVisibility();
     });
 }
 
@@ -120,6 +163,41 @@ function updateCharts() {
       }
     });
   }
+}
+
+// Update charts visibility based on data availability
+function updateChartsVisibility() {
+  const hasData = Object.keys(subjectData).length > 0;
+  
+  // Subject-wise chart section
+  const subjectChartCanvas = document.getElementById("subjectChart");
+  const noSubjectData = document.getElementById("noSubjectData");
+  
+  if (subjectChartCanvas && noSubjectData) {
+    if (hasData) {
+      subjectChartCanvas.style.display = 'block';
+      noSubjectData.style.display = 'none';
+    } else {
+      subjectChartCanvas.style.display = 'none';
+      noSubjectData.style.display = 'block';
+    }
+  }
+  
+  // Overall attendance chart section
+  const overallChartCanvas = document.getElementById("overallChart");
+  const noOverallData = document.getElementById("noOverallData");
+  
+  if (overallChartCanvas && noOverallData) {
+    if (hasData) {
+      overallChartCanvas.style.display = 'block';
+      noOverallData.style.display = 'none';
+    } else {
+      overallChartCanvas.style.display = 'none';
+      noOverallData.style.display = 'block';
+    }
+  }
+  
+  console.log(`Charts visibility updated: ${hasData ? 'showing' : 'hiding'} charts`);
 }
 
 
@@ -316,6 +394,93 @@ async function fetchTodayAttendance(user) {
   }
 }
 
+// Fetch yesterday's attendance from Firebase
+async function fetchYesterdayAttendance(user) {
+  const yesterdayList = document.getElementById('yesterdayList');
+  const noYesterdayData = document.getElementById('noYesterdayData');
+  
+  // Calculate yesterday's date
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayDate = yesterday.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  try {
+    const attendanceRef = db.collection('attendances')
+      .where('userId', '==', user.uid)
+      .where('date', '==', yesterdayDate);
+
+    const snapshot = await attendanceRef.get();
+
+    if (snapshot.empty) {
+      noYesterdayData.style.display = 'block';
+      yesterdayList.style.display = 'none';
+      yesterdayList.innerHTML = ''; // Clear existing entries
+      console.log('No attendance data found for yesterday:', yesterdayDate);
+      return;
+    }
+
+    noYesterdayData.style.display = 'none';
+    yesterdayList.style.display = 'block';
+    yesterdayList.innerHTML = ''; // Clear existing entries
+
+    console.log(`Found ${snapshot.size} attendance records for yesterday (${yesterdayDate})`);
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const { subject, status, periods } = data;
+      const statusText = status === 'present' ? 'Present' : 'Absent';
+      const statusColor = status === 'present' ? '#28a745' : '#dc3545';
+      const statusIcon = status === 'present' ? 'fa-check-circle' : 'fa-times-circle';
+      
+      const attendanceItem = document.createElement('li');
+      attendanceItem.className = 'attendance-item';
+      attendanceItem.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 15px;
+        margin-bottom: 8px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-left: 4px solid ${statusColor};
+        border-radius: 8px;
+        transition: all 0.3s ease;
+      `;
+      
+      attendanceItem.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <i class="fas ${statusIcon}" style="color: ${statusColor}; font-size: 16px;"></i>
+          <span class="subject-name" style="font-weight: 600; color: #fff;">${subject}</span>
+          ${periods ? `<span style="font-size: 12px; color: #aaa;">(${periods} periods)</span>` : ''}
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="attendance-status" style="color: ${statusColor}; font-weight: 600;">${statusText}</span>
+          ${data.hasPhoto ? '<i class="fas fa-camera" style="color: #17a2b8; font-size: 12px;" title="Photo verified"></i>' : ''}
+        </div>
+      `;
+      
+      // Add hover effect
+      attendanceItem.addEventListener('mouseenter', () => {
+        attendanceItem.style.transform = 'translateX(5px)';
+        attendanceItem.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+      });
+      
+      attendanceItem.addEventListener('mouseleave', () => {
+        attendanceItem.style.transform = 'translateX(0)';
+        attendanceItem.style.boxShadow = 'none';
+      });
+      
+      yesterdayList.appendChild(attendanceItem);
+    });
+
+  } catch (error) {
+    console.error('Error fetching yesterday\'s attendance:', error);
+    noYesterdayData.style.display = 'block';
+    yesterdayList.style.display = 'none';
+    yesterdayList.innerHTML = '';
+  }
+}
+
 // Update `onAuthStateChanged` to call the new function
 auth.onAuthStateChanged(async user => {
   if (user) {
@@ -342,6 +507,7 @@ auth.onAuthStateChanged(async user => {
     // Load dashboard data for existing users
     loadUserProfile(user);
     fetchTodayAttendance(user); // Fetch today's attendance
+    fetchYesterdayAttendance(user); // Fetch yesterday's attendance
     fetchAttendanceData(); // Fetch all attendance data for charts and warnings
     fetchNotificationsFromServer(); // Fetch real notifications from Firebase
   } else {
@@ -1477,25 +1643,87 @@ if (typeof window !== 'undefined') {
 }
 
 /* ===== QR SCANNER FUNCTIONS ===== */
-// Open QR Scanner Modal
+// Global camera permission state
+let frontCameraPermissionGranted = false;
+
+// Test front camera access (browser will show native permission dialog)
+async function testFrontCameraAccess() {
+  console.log('🎥 Testing front camera access...');
+  
+  try {
+    // Request front camera access - browser shows native permission dialog
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { 
+        facingMode: 'user', // Front camera
+        width: { ideal: 640, min: 320 },
+        height: { ideal: 480, min: 240 }
+      },
+      audio: false
+    });
+    
+    console.log('✅ Front camera access granted');
+    frontCameraPermissionGranted = true;
+    
+    // Stop the test stream immediately - we just needed to check permission
+    stream.getTracks().forEach(track => track.stop());
+    
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Front camera access denied:', error);
+    frontCameraPermissionGranted = false;
+    throw error;
+  }
+}
+
+// Open QR Scanner Modal (with native browser permission check)
 function openQRScanner() {
+  console.log('🚀 Starting attendance marking process...');
+  
+  // Directly test front camera access - browser will show native permission dialog
+  testFrontCameraAccess()
+    .then(() => {
+      console.log('✅ Front camera permission granted, opening QR scanner');
+      showNotification('Permission Granted', 'You can now scan the QR code to mark attendance.');
+      initializeQRScanner();
+    })
+    .catch((error) => {
+      console.log('❌ Front camera permission denied, cannot proceed');
+      
+      let errorMessage = 'Front camera access is required to mark attendance.';
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please allow front camera access to continue.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No front camera found on this device.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera is being used by another application. Please close other apps and try again.';
+      }
+      
+      showNotification('Permission Required', errorMessage);
+    });
+}
+
+// Initialize QR Scanner (separated from permission logic)
+function initializeQRScanner() {
   const modal = document.getElementById('scannerModal');
   const videoElement = document.getElementById('qrReader');
   
-  console.log('QR Scanner elements check:', {
-    modal: !!modal,
-    videoElement: !!videoElement
-  });
+  console.log('📱 Initializing QR Scanner...');
   
   if (!modal || !videoElement) {
     console.error('QR Scanner modal or video element not found');
-    console.error('Modal found:', !!modal, 'Video element found:', !!videoElement);
     showNotification('Scanner Error', 'QR Scanner is not properly configured.');
     return;
   }
   
-  console.log('Opening QR Scanner...');
   modal.style.display = 'flex';
+  
+  // Update status to show camera permission granted
+  const scannerStatus = document.getElementById('scannerStatus');
+  if (scannerStatus) {
+    scannerStatus.textContent = 'Camera permission granted ✅ Initializing scanner...';
+    scannerStatus.style.color = '#28a745';
+  }
   
   // Initialize the QR code scanner
   try {
@@ -1507,31 +1735,39 @@ function openQRScanner() {
       aspectRatio: 1.0
     };
     
-    // Start scanning
+    // Start scanning with back camera for QR codes
     html5QrCode.start(
-      { facingMode: "environment" }, // Use back camera
+      { facingMode: "environment" }, // Use back camera for QR scanning
       config,
       onScanSuccess,
       onScanError
     ).then(() => {
-      console.log('QR Scanner started successfully');
-      // Update UI
-      document.getElementById('scannerStatus').textContent = 'Scanner active - Point camera at QR code';
-      document.getElementById('scannerStatus').style.color = '#28a745';
+      console.log('📷 QR Scanner started successfully');
+      if (scannerStatus) {
+        scannerStatus.textContent = 'Scanner active - Point camera at QR code';
+        scannerStatus.style.color = '#007bff';
+      }
     }).catch(err => {
-      console.error('Error starting QR scanner:', err);
-      // Fallback to user camera if environment camera fails
+      console.warn('Back camera failed, trying front camera for QR scanning:', err);
+      // Fallback to front camera if back camera fails
       return html5QrCode.start(
         { facingMode: "user" },
         config,
         onScanSuccess,
         onScanError
       );
+    }).then(() => {
+      if (scannerStatus) {
+        scannerStatus.textContent = 'Scanner active - Point camera at QR code';
+        scannerStatus.style.color = '#007bff';
+      }
     }).catch(err => {
-      console.error('Error starting QR scanner with user camera:', err);
-      document.getElementById('scannerStatus').textContent = 'Camera access denied or unavailable';
-      document.getElementById('scannerStatus').style.color = '#dc3545';
-      showNotification('Scanner Error', 'Unable to access camera. Please check permissions.');
+      console.error('Error starting QR scanner:', err);
+      if (scannerStatus) {
+        scannerStatus.textContent = 'Scanner failed to start';
+        scannerStatus.style.color = '#dc3545';
+      }
+      showNotification('Scanner Error', 'Unable to start QR scanner. Please try again.');
     });
   } catch (error) {
     console.error('Error initializing QR scanner:', error);
@@ -1592,23 +1828,28 @@ function onScanSuccess(decodedText, decodedResult) {
       return;
     }
     
-    // Store scanned data
+    // Store scanned data in both variable and localStorage for backup
     currentScannedData = qrData;
+    localStorage.setItem('currentQrData', JSON.stringify(qrData));
+    console.log('✅ QR data stored:', qrData);
+    console.log('✅ QR data backed up to localStorage');
     
-    // Close scanner and show confirmation
+    // Close QR scanner
     closeQRScanner();
     
     // Show success notification with details
     const timeLeft = Math.ceil((qrData.expiry - now) / 1000);
     showNotification(
       'QR Scanned Successfully!',
-      `Subject: ${qrData.subject} | Batch: ${qrData.batch} | Periods: ${qrData.periods}`
+      `Subject: ${qrData.subject} | Batch: ${qrData.batch} | Periods: ${qrData.periods} | Now capturing photo...`
     );
     
     console.log('QR Data:', qrData);
     
-    // Automatically mark attendance
-    markAttendance(qrData);
+    // Open photo capture modal for verification
+    setTimeout(() => {
+      openPhotoCapture();
+    }, 1000); // Small delay to show the success message
     
   } catch (error) {
     console.error('Error processing QR code:', error);
@@ -1720,9 +1961,645 @@ async function markAttendance(qrData) {
   }
 }
 
+// Photo capture variables
+let photoCaptureStream = null;
+let capturedPhotoData = null;
+let autoCaptureTimer = null;
+let countdownInterval = null;
+
+/* ===== PHOTO CAPTURE FUNCTIONS ===== */
+
+// Initialize video stream with proper error handling
+function initializeVideoStream() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log('🎥 Requesting front camera access...');
+      
+      // Request front camera access with enhanced constraints
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user', // Front camera only
+          width: { ideal: 1920, min: 640, max: 1920 },
+          height: { ideal: 1080, min: 480, max: 1080 },
+          frameRate: { ideal: 30, min: 15, max: 30 }
+        },
+        audio: false
+      });
+      
+      console.log('✅ Camera stream obtained successfully');
+      console.log('Stream details:', {
+        active: stream.active,
+        tracks: stream.getVideoTracks().length,
+        settings: stream.getVideoTracks()[0]?.getSettings()
+      });
+      
+      resolve(stream);
+      
+    } catch (error) {
+      console.error('❌ Camera access failed:', error);
+      reject(error);
+    }
+  });
+}
+
+// Setup video element properly
+function setupVideoElement(video, stream) {
+  return new Promise((resolve, reject) => {
+    console.log('📺 Setting up video element...');
+    
+    // Configure video element
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    
+    // Apply mirror effect and styling
+    video.style.transform = 'scaleX(-1)';
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = 'cover';
+    video.style.backgroundColor = '#000';
+    
+    // Handle video events
+    video.onloadedmetadata = () => {
+      console.log('📹 Video metadata loaded:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        readyState: video.readyState
+      });
+    };
+    
+    video.oncanplay = () => {
+      console.log('📹 Video can play');
+    };
+    
+    video.onplaying = () => {
+      console.log('📹 Video is playing');
+      resolve(true);
+    };
+    
+    video.onerror = (error) => {
+      console.error('❌ Video error:', error);
+      reject(error);
+    };
+    
+    // Force play the video
+    video.play().then(() => {
+      console.log('✅ Video play() succeeded');
+    }).catch(err => {
+      console.error('❌ Video play() failed:', err);
+      // Don't reject here, onplaying event will handle success
+    });
+    
+    // Timeout fallback
+    setTimeout(() => {
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        console.log('⏰ Video ready via timeout fallback');
+        resolve(true);
+      } else {
+        reject(new Error('Video failed to initialize within timeout'));
+      }
+    }, 5000);
+  });
+}
+
+// Open Photo Capture Modal
+function openPhotoCapture() {
+  const modal = document.getElementById('photoCaptureModal');
+  const video = document.getElementById('photoCaptureVideo');
+  const captureBtn = document.getElementById('capturePhotoBtn');
+  const photoStatus = document.getElementById('photoStatus');
+  
+  console.log('Opening Photo Capture modal...');
+  
+  if (!modal || !video) {
+    console.error('Photo capture elements not found');
+    showNotification('Photo Capture Error', 'Photo capture components not properly configured.');
+    return;
+  }
+  
+  modal.style.display = 'flex';
+  
+  // Reset UI first
+  if (captureBtn) captureBtn.style.display = 'none';
+  photoStatus.textContent = 'Requesting camera permission...';
+  photoStatus.style.color = '#007bff';
+  photoStatus.style.fontSize = '16px';
+  photoStatus.style.fontWeight = 'normal';
+  
+  // Check if mediaDevices is supported
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    console.error('getUserMedia is not supported in this browser');
+    photoStatus.textContent = 'Camera not supported in this browser';
+    photoStatus.style.color = '#dc3545';
+    showNotification('Camera Error', 'Your browser does not support camera access.');
+    return;
+  }
+
+  // Directly request front camera access - this will show the browser's native permission dialog
+  console.log('🎥 Requesting camera access...');
+  navigator.mediaDevices.getUserMedia({ 
+    video: { 
+      facingMode: 'user', // Front camera
+      width: { ideal: 1280, min: 640 },
+      height: { ideal: 720, min: 480 },
+      frameRate: { ideal: 30, min: 15 }
+    },
+    audio: false
+  }).then(stream => {
+    console.log('✅ Camera permission granted, stream obtained:', {
+      streamId: stream.id,
+      active: stream.active,
+      videoTracks: stream.getVideoTracks().length,
+      trackSettings: stream.getVideoTracks()[0]?.getSettings()
+    });
+    
+    photoCaptureStream = stream;
+    photoStatus.textContent = 'Initializing camera...';
+    photoStatus.style.color = '#ffc107';
+    
+    // Clear any existing srcObject first
+    video.srcObject = null;
+    
+    // Set up video element with proper event handling
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    video.controls = false;
+    
+    // Apply styling
+    video.style.transform = 'scaleX(-1)'; // Mirror effect
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.objectFit = 'cover';
+    video.style.backgroundColor = '#000';
+    
+    // Set up event listeners before assigning stream
+    const onVideoReady = () => {
+      console.log('📹 Video ready event triggered:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        readyState: video.readyState,
+        currentTime: video.currentTime
+      });
+      
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        photoStatus.textContent = 'Camera ready! Position your face and tap Capture Photo';
+        photoStatus.style.color = '#28a745';
+        
+        // Show the manual capture button
+        if (captureBtn) {
+          captureBtn.style.display = 'flex';
+        }
+      }
+    };
+    
+    // Multiple event listeners to catch video ready state
+    video.addEventListener('loadedmetadata', () => {
+      console.log('📹 Video metadata loaded');
+      onVideoReady();
+    }, { once: true });
+    
+    video.addEventListener('canplay', () => {
+      console.log('📹 Video can play');
+      onVideoReady();
+    }, { once: true });
+    
+    video.addEventListener('playing', () => {
+      console.log('📹 Video is playing');
+      onVideoReady();
+    }, { once: true });
+    
+    video.addEventListener('error', (err) => {
+      console.error('❌ Video element error:', err);
+      photoStatus.textContent = 'Video error occurred';
+      photoStatus.style.color = '#dc3545';
+    });
+    
+    // Now set the stream
+    video.srcObject = stream;
+    
+    // Force play the video
+    setTimeout(() => {
+      video.play().then(() => {
+        console.log('✅ Video.play() succeeded');
+      }).catch(err => {
+        console.error('❌ Video.play() failed:', err);
+        // Try to trigger ready check anyway
+        setTimeout(onVideoReady, 500);
+      });
+    }, 100);
+    
+    // Safety timeout - force ready after reasonable time
+    setTimeout(() => {
+      console.log('⏰ Safety timeout check:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        readyState: video.readyState,
+        paused: video.paused
+      });
+      
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        console.log('✅ Video ready via safety timeout');
+        onVideoReady();
+      } else {
+        console.log('⚠️ Video still not ready, starting anyway');
+        photoStatus.textContent = 'Camera initializing... Please wait';
+        photoStatus.style.color = '#ffc107';
+        
+        // Final attempt after longer delay
+        setTimeout(() => {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            onVideoReady();
+          } else {
+            console.log('🔧 Showing manual capture button despite video not fully ready');
+            photoStatus.textContent = 'Camera ready! Position your face and tap Capture Photo';
+            photoStatus.style.color = '#28a745';
+            if (captureBtn) {
+              captureBtn.style.display = 'flex';
+            }
+          }
+        }, 2000);
+      }
+    }, 3000);
+    
+  }).catch(error => {
+    console.error('❌ Camera permission denied or error:', error);
+    photoStatus.style.color = '#dc3545';
+
+    let errorMessage = 'Camera access failed';
+    let notificationTitle = 'Camera Error';
+    let notificationMessage = 'Unable to access camera';
+    
+    if (error.name === 'NotAllowedError') {
+      errorMessage = 'Camera permission denied';
+      notificationTitle = 'Permission Denied';
+      notificationMessage = 'Please allow camera access to continue';
+    } else if (error.name === 'NotFoundError') {
+      errorMessage = 'No camera found';
+      notificationTitle = 'No Camera';
+      notificationMessage = 'No camera detected on this device';
+    } else if (error.name === 'NotReadableError') {
+      errorMessage = 'Camera in use by another app';
+      notificationTitle = 'Camera Busy';
+      notificationMessage = 'Close other apps using the camera';
+    } else if (error.name === 'OverconstrainedError') {
+      errorMessage = 'Camera constraints not supported';
+      notificationTitle = 'Camera Issue';
+      notificationMessage = 'Camera settings not compatible';
+    }
+
+    photoStatus.textContent = errorMessage;
+    showNotification(notificationTitle, notificationMessage);
+    
+    // Add retry button
+    setTimeout(() => {
+      photoStatus.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+          <div style="font-size: 48px; margin-bottom: 15px;">📷</div>
+          <h3 style="color: #dc3545; margin-bottom: 10px;">Camera Access Required</h3>
+          <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+            ${notificationMessage}
+          </p>
+          <button onclick="requestCameraPermission()" 
+                  style="background: #007bff; color: white; border: none; padding: 12px 24px; 
+                         border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;">
+            🔄 Try Again
+          </button>
+        </div>
+      `;
+    }, 1000);
+  });
+}
+
+// Close Photo Capture Modal
+function closePhotoCaptureModal() {
+  const modal = document.getElementById('photoCaptureModal');
+  
+  console.log('Closing Photo Capture modal...');
+  console.log('Before closing - capturedPhotoData exists:', !!capturedPhotoData);
+  console.log('Before closing - currentScannedData exists:', !!currentScannedData);
+  
+  // Stop camera stream
+  if (photoCaptureStream) {
+    photoCaptureStream.getTracks().forEach(track => track.stop());
+    photoCaptureStream = null;
+  }
+  
+  // Reset UI
+  resetPhotoCaptureUI();
+  
+  // Hide modal
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  
+  // Only clear captured data if attendance was successfully marked
+  // This preserves the photo data in case the modal needs to be reopened
+  // Note: Data will be cleared in markAttendanceWithPhoto after successful submission
+}
+
+// Capture student photo
+function captureStudentPhoto() {
+  const video = document.getElementById('photoCaptureVideo');
+  const canvas = document.getElementById('photoCaptureCanvas');
+  const capturedImg = document.getElementById('capturedPhotoImg');
+  const capturedPreview = document.getElementById('capturedPhotoPreview');
+  const captureBtn = document.getElementById('capturePhotoBtn');
+  const retakeBtn = document.getElementById('retakePhotoBtn');
+  const confirmBtn = document.getElementById('confirmPhotoBtn');
+  const photoStatus = document.getElementById('photoStatus');
+  
+  console.log('Capture photo attempt - video ready check:', {
+    videoExists: !!video,
+    canvasExists: !!canvas,
+    videoWidth: video?.videoWidth || 0,
+    videoHeight: video?.videoHeight || 0,
+    videoReadyState: video?.readyState
+  });
+  
+  if (!video || !canvas) {
+    showNotification('Capture Error', 'Video or canvas elements not found.');
+    return;
+  }
+  
+  // More comprehensive video readiness check
+  if (video.videoWidth === 0 || video.videoHeight === 0 || video.readyState < 2) {
+    console.log('Video not ready yet, waiting...');
+    photoStatus.textContent = 'Video is loading, please wait...';
+    photoStatus.style.color = '#007bff';
+    
+    // Try again after a short delay
+    setTimeout(() => {
+      if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+        console.log('Video ready after delay, trying capture again');
+        captureStudentPhoto();
+      } else {
+        showNotification('Camera Error', 'Video stream is not ready. Please refresh the page and try again.');
+      }
+    }, 1000);
+    return;
+  }
+  
+  console.log('Capturing student photo...');
+  
+  // Set canvas dimensions to match video
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  
+  // Capture frame from video
+  const context = canvas.getContext('2d');
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  // Convert to base64 data URL
+  capturedPhotoData = canvas.toDataURL('image/jpeg', 0.8);
+  
+  // Show captured photo preview
+  capturedImg.src = capturedPhotoData;
+  capturedPreview.style.display = 'flex';
+  
+  // Update UI buttons
+  captureBtn.style.display = 'none';
+  retakeBtn.style.display = 'flex';
+  confirmBtn.style.display = 'flex';
+  
+  // Update status
+  photoStatus.textContent = 'Photo captured! Review and confirm or retake';
+  photoStatus.style.color = '#007bff';
+  
+  console.log('Photo captured successfully');
+}
+
+// Retake photo
+function retakePhoto() {
+  const capturedPreview = document.getElementById('capturedPhotoPreview');
+  const captureBtn = document.getElementById('capturePhotoBtn');
+  const retakeBtn = document.getElementById('retakePhotoBtn');
+  const confirmBtn = document.getElementById('confirmPhotoBtn');
+  const photoStatus = document.getElementById('photoStatus');
+  
+  console.log('Retaking photo...');
+  
+  // Hide captured photo preview
+  capturedPreview.style.display = 'none';
+  
+  // Reset UI buttons
+  captureBtn.style.display = 'flex';
+  retakeBtn.style.display = 'none';
+  confirmBtn.style.display = 'none';
+  
+  // Update status
+  photoStatus.textContent = 'Position your face in the frame and capture again';
+  photoStatus.style.color = '#28a745';
+  
+  // Clear captured data
+  capturedPhotoData = null;
+}
+
+// Confirm photo and mark attendance
+function confirmPhotoAndMarkAttendance() {
+  console.log('=== CONFIRM PHOTO AND MARK ATTENDANCE DEBUG ===');
+  console.log('capturedPhotoData exists:', !!capturedPhotoData);
+  console.log('currentScannedData exists:', !!currentScannedData);
+  console.log('capturedPhotoData length:', capturedPhotoData ? capturedPhotoData.length : 'null');
+  console.log('currentScannedData details:', currentScannedData);
+  
+  // Check localStorage backup for QR data
+  const backupQrData = localStorage.getItem('currentQrData');
+  console.log('Backup QR data in localStorage:', backupQrData);
+  
+  if (!capturedPhotoData) {
+    console.error('Missing captured photo data');
+    showNotification('Photo Error', 'No photo captured. Please capture a photo first.');
+    return;
+  }
+  
+  // Try to recover QR data from localStorage if main variable is lost
+  if (!currentScannedData && backupQrData) {
+    try {
+      currentScannedData = JSON.parse(backupQrData);
+      console.log('✅ Recovered QR data from localStorage:', currentScannedData);
+    } catch (e) {
+      console.error('❌ Failed to parse backup QR data:', e);
+    }
+  }
+  
+  if (!currentScannedData) {
+    console.error('❌ Missing QR scan data - both main variable and backup are empty');
+    showNotification('QR Error', 'No QR data available. Please scan QR code again.');
+    
+    // Close the photo modal and redirect user to scan QR again
+    setTimeout(() => {
+      closePhotoCaptureModal();
+      showNotification('Please Start Over', 'Please scan the QR code first, then take your photo.');
+    }, 2000);
+    return;
+  }
+  
+  console.log('Confirming photo and marking attendance...');
+  
+  // Show processing notification first
+  showNotification(
+    'Processing Attendance...',
+    'Saving photo and marking attendance. Please wait...'
+  );
+  
+  // Mark attendance with photo
+  markAttendanceWithPhoto(currentScannedData, capturedPhotoData);
+  
+  // Close photo capture modal after starting the process
+  setTimeout(() => {
+    closePhotoCaptureModal();
+  }, 1000);
+}
+
+// Reset photo capture UI
+function resetPhotoCaptureUI() {
+  const capturedPreview = document.getElementById('capturedPhotoPreview');
+  const captureBtn = document.getElementById('capturePhotoBtn');
+  const retakeBtn = document.getElementById('retakePhotoBtn');
+  const confirmBtn = document.getElementById('confirmPhotoBtn');
+  const photoStatus = document.getElementById('photoStatus');
+  
+  if (capturedPreview) capturedPreview.style.display = 'none';
+  if (captureBtn) captureBtn.style.display = 'none';
+  if (retakeBtn) retakeBtn.style.display = 'none';
+  if (confirmBtn) confirmBtn.style.display = 'none';
+  
+  if (photoStatus) {
+    photoStatus.textContent = 'Camera inactive';
+    photoStatus.style.color = '#6c757d';
+  }
+}
+
+// Mark attendance with photo verification
+async function markAttendanceWithPhoto(qrData, photoData) {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      showNotification('Authentication Required', 'Please log in to mark attendance.');
+      return;
+    }
+    
+    // Get student profile data
+    const savedProfile = localStorage.getItem('studentProfile');
+    let studentProfile = {};
+    if (savedProfile) {
+      studentProfile = JSON.parse(savedProfile);
+    }
+    
+    // Validate student belongs to the same batch/school as QR code
+    if (studentProfile.school && studentProfile.school !== qrData.school) {
+      showNotification('Invalid QR Code', 'This QR code is not for your school.');
+      return;
+    }
+    
+    if (studentProfile.batch && studentProfile.batch !== qrData.batch) {
+      showNotification('Invalid QR Code', 'This QR code is not for your batch.');
+      return;
+    }
+    
+    // Check if already marked attendance for this session
+    const today = new Date().toISOString().slice(0, 10);
+    const attendanceQuery = await db.collection('attendances')
+      .where('userId', '==', user.uid)
+      .where('date', '==', today)
+      .where('subject', '==', qrData.subject)
+      .get();
+    
+    if (!attendanceQuery.empty) {
+      showNotification('Already Marked', `Attendance already recorded for ${qrData.subject} today.`);
+      return;
+    }
+    
+    // Create attendance record with photo
+    const attendanceData = {
+      userId: user.uid,
+      studentEmail: user.email,
+      studentName: studentProfile.fullName || extractNameFromEmail(user.email),
+      regNumber: studentProfile.regNumber || 'N/A',
+      school: qrData.school,
+      batch: qrData.batch,
+      subject: qrData.subject,
+      periods: qrData.periods,
+      date: today,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      status: 'present',
+      markedAt: new Date(),
+      qrTimestamp: qrData.timestamp,
+      scanDelay: Date.now() - qrData.timestamp,
+      hasPhoto: true,
+      photoTimestamp: new Date(),
+      verificationMethod: 'qr_and_photo'
+    };
+    
+    // For now, we'll store photo data as a field (in production, use Firebase Storage)
+    // Note: This is simplified - in production, upload to Firebase Storage and store URL
+    attendanceData.photoData = photoData; // Base64 encoded photo
+    
+    // Save to Firebase
+    const docRef = await db.collection('attendances').add(attendanceData);
+    console.log('Attendance with photo marked with ID:', docRef.id);
+    
+    // Show success notification
+    showNotification(
+      '✅ Attendance Verified!',
+      `Present for ${qrData.subject} (${qrData.periods} periods) with photo verification - ${today}`
+    );
+    
+    // Add to local notifications
+    addNotification(
+      'success',
+      `✅ Verified attendance for ${qrData.subject} - ${qrData.periods} periods (with photo)`,
+      'Just now'
+    );
+    
+    // Update local attendance data (simulate increase)
+    if (subjectData[qrData.subject]) {
+      subjectData[qrData.subject] = Math.min(100, subjectData[qrData.subject] + 2);
+      updateCharts();
+      showLowAttendanceWarnings();
+    }
+    
+    // Refresh today's attendance display
+    if (auth.currentUser) {
+      fetchTodayAttendance(auth.currentUser);
+    }
+    
+    // Clear the scanned data and localStorage backup
+    currentScannedData = null;
+    localStorage.removeItem('currentQrData');
+    console.log('✅ QR data cleared after successful attendance marking');
+    
+  } catch (error) {
+    console.error('Error marking attendance with photo:', error);
+    showNotification('Error', 'Failed to mark attendance with photo. Please try again.');
+  }
+}
+
+// Request camera permission function
+function requestCameraPermission() {
+  console.log('Requesting camera permission...');
+  const photoStatus = document.getElementById('photoStatus');
+  
+  if (photoStatus) {
+    photoStatus.textContent = 'Requesting camera permission...';
+    photoStatus.style.color = '#ffc107';
+  }
+  
+  // Try to open photo capture again
+  openPhotoCapture();
+}
+
 // Global functions to be called from HTML
 window.openQRScanner = openQRScanner;
 window.closeQRScanner = closeQRScanner;
+window.openPhotoCapture = openPhotoCapture;
+window.closePhotoCaptureModal = closePhotoCaptureModal;
+window.captureStudentPhoto = captureStudentPhoto;
+window.retakePhoto = retakePhoto;
+window.confirmPhotoAndMarkAttendance = confirmPhotoAndMarkAttendance;
+window.requestCameraPermission = requestCameraPermission;
 
 /* ===== PAGE INITIALIZATION ===== */
 // Initialize page when DOM is ready
@@ -1742,4 +2619,3 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('- debugTestFirebaseConnection() - Test Firebase connection');
   console.log('- debugCheckNotificationPermissions() - Test notification permissions');
 });
-
