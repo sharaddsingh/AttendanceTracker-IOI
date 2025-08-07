@@ -895,6 +895,7 @@ function showFacultyWelcome(profileData) {
 function populateSubjectOptions(subjects) {
     const subjectSelect = document.getElementById('subjectSelect');
     const qrSubjectSelect = document.getElementById('qrSubject');
+    const manualSubjectSelect = document.getElementById('manualSubject');
     
     // Clear existing options except the first one for both selects
     if (subjectSelect) {
@@ -914,6 +915,17 @@ function populateSubjectOptions(subjects) {
             option.value = subject;
             option.textContent = subject;
             qrSubjectSelect.appendChild(option);
+        });
+    }
+    
+    // Populate manual attendance subject dropdown
+    if (manualSubjectSelect) {
+        manualSubjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        subjects.forEach(subject => {
+            const option = document.createElement('option');
+            option.value = subject;
+            option.textContent = subject;
+            manualSubjectSelect.appendChild(option);
         });
     }
 }
@@ -962,3 +974,531 @@ function showSuccessMessage(message) {
         }
     }, 5000);
 }
+
+// ===== MANUAL ATTENDANCE FUNCTIONS =====
+
+// Batch options for manual attendance
+const manualBatchOptions = {
+    "School of Technology": ["24B1", "24B2", "23B1"],
+    "School of Management": ["23B1", "24B1"]
+};
+
+// Store loaded students and their attendance status
+let loadedStudents = [];
+let attendanceData = new Map(); // studentId -> {present: boolean, ...}
+
+/**
+ * Updates batch options for manual attendance based on selected school
+ */
+function updateManualBatchOptions() {
+    const schoolSelect = document.getElementById('manualSchool');
+    const batchSelect = document.getElementById('manualBatch');
+    const selectedSchool = schoolSelect.value;
+    
+    // Clear existing options
+    batchSelect.innerHTML = '<option value="">Select Batch</option>';
+    
+    if (selectedSchool && manualBatchOptions[selectedSchool]) {
+        batchSelect.disabled = false;
+        manualBatchOptions[selectedSchool].forEach(batch => {
+            const option = document.createElement('option');
+            option.value = batch;
+            option.textContent = batch;
+            batchSelect.appendChild(option);
+        });
+        console.log(`Updated manual batch options for ${selectedSchool}:`, manualBatchOptions[selectedSchool]);
+    } else {
+        batchSelect.disabled = true;
+    }
+    
+    // Clear students container if visible
+    document.getElementById('studentsContainer').style.display = 'none';
+    loadedStudents = [];
+    attendanceData.clear();
+}
+
+/**
+ * Loads students list based on selected criteria
+ */
+async function loadStudentsList() {
+    const school = document.getElementById('manualSchool').value;
+    const batch = document.getElementById('manualBatch').value;
+    const subject = document.getElementById('manualSubject').value;
+    const periods = document.getElementById('manualPeriods').value;
+    
+    // Validation
+    if (!school || !batch || !subject || !periods) {
+        alert('Please fill in all fields before loading students.');
+        return;
+    }
+    
+    try {
+        console.log('🔍 Loading students for:', { school, batch, subject, periods });
+        
+        // Show loading state
+        const studentsContainer = document.getElementById('studentsContainer');
+        const studentsList = document.getElementById('studentsList');
+        
+        studentsContainer.style.display = 'block';
+        studentsList.innerHTML = `
+            <div class="loading-students">
+                <i class="fas fa-spinner"></i>
+                <p>Loading students...</p>
+            </div>
+        `;
+        
+        // Update attendance title
+        const attendanceTitle = document.getElementById('attendanceTitle');
+        attendanceTitle.textContent = `Mark Attendance - ${subject} (${batch})`;
+        
+        const db = firebase.firestore();
+        
+        // First, let's check all users to see what data we have
+        console.log('🔍 Checking all users in database...');
+        const allUsersQuery = await db.collection('users').limit(10).get();
+        console.log('📊 Sample users found:', allUsersQuery.size);
+        
+        allUsersQuery.forEach(doc => {
+            const userData = doc.data();
+            console.log('👤 Sample user data:', {
+                id: doc.id,
+                role: userData.role,
+                school: userData.school,
+                batch: userData.batch,
+                name: userData.fullName || userData.name,
+                email: userData.email
+            });
+        });
+        
+        // Now query for students with role 'student'
+        console.log('🎓 Querying for students with role="student"...');
+        const studentRoleQuery = await db.collection('users')
+            .where('role', '==', 'student')
+            .get();
+        console.log('📊 Students with role="student" found:', studentRoleQuery.size);
+        
+        studentRoleQuery.forEach(doc => {
+            const userData = doc.data();
+            console.log('🎓 Student data:', {
+                id: doc.id,
+                school: userData.school,
+                batch: userData.batch,
+                name: userData.fullName || userData.name,
+                email: userData.email
+            });
+        });
+        
+        // Since school and batch are undefined in users collection, 
+        // we need to get all students and check their profiles
+        console.log(`🔍 Getting all students and checking profiles for school="${school}" and batch="${batch}"...`);
+        
+        // First get all students
+        const allStudentsQuery = await db.collection('users')
+            .where('role', '==', 'student')
+            .get();
+        
+        console.log('📊 Total students found in users collection:', allStudentsQuery.size);
+        
+        // Now we need to check each student's profile for school and batch info
+        const matchingStudents = [];
+        const profilePromises = [];
+        
+        allStudentsQuery.forEach(studentDoc => {
+            const studentData = studentDoc.data();
+            console.log('👤 Checking student:', {
+                id: studentDoc.id,
+                email: studentData.email,
+                name: studentData.fullName || studentData.name
+            });
+            
+            // Check if they have a profile document
+            const profilePromise = db.collection('profiles').doc(studentDoc.id).get()
+                .then(profileDoc => {
+                    if (profileDoc.exists) {
+                        const profileData = profileDoc.data();
+                        console.log('📋 Student profile found:', {
+                            id: studentDoc.id,
+                            school: profileData.school,
+                            batch: profileData.batch,
+                            name: profileData.fullName || studentData.fullName || studentData.name,
+                            regNumber: profileData.regNumber || 'N/A'
+                        });
+                        
+                        if (profileData.school === school && profileData.batch === batch) {
+                            console.log('✅ Student matches criteria:', studentDoc.id);
+                            matchingStudents.push({
+                                userDoc: studentDoc,
+                                userData: studentData,
+                                profileData: profileData
+                            });
+                        }
+                    } else {
+                        console.log('❌ No profile found for student:', studentDoc.id);
+                    }
+                })
+                .catch(error => {
+                    console.warn('⚠️ Error fetching profile for student:', studentDoc.id, error);
+                });
+            
+            profilePromises.push(profilePromise);
+        });
+        
+        // Wait for all profile checks to complete
+        await Promise.all(profilePromises);
+        
+        console.log(`📊 Students matching ${school} - ${batch}:`, matchingStudents.length);
+        
+        loadedStudents = [];
+        attendanceData.clear();
+        
+        // If no students found in profiles, try to use all students as fallback
+        if (matchingStudents.length === 0) {
+            console.log('❌ No students found with matching profiles');
+            console.log('🔄 Trying fallback approach - using all students for this batch...');
+            
+            // Fallback: Use all students and filter based on email patterns or batch info
+            allStudentsQuery.forEach(studentDoc => {
+                const studentData = studentDoc.data();
+                const email = studentData.email || '';
+                
+                // Try to infer batch from email (e.g., sot2428 suggests School of Technology, batch 2428/24B1)
+                let inferredSchool = '';
+                let inferredBatch = '';
+                
+                if (email.includes('sot')) {
+                    inferredSchool = 'School of Technology';
+                    if (email.includes('2428')) {
+                        inferredBatch = '24B1'; // or '24B2', we'll make this more flexible
+                    } else if (email.includes('2328')) {
+                        inferredBatch = '23B1';
+                    }
+                } else if (email.includes('som')) {
+                    inferredSchool = 'School of Management';
+                    if (email.includes('2428')) {
+                        inferredBatch = '24B1';
+                    } else if (email.includes('2328')) {
+                        inferredBatch = '23B1';
+                    }
+                }
+                
+                console.log('🔍 Checking student with email pattern:', {
+                    id: studentDoc.id,
+                    email: email,
+                    inferredSchool,
+                    inferredBatch,
+                    targetSchool: school,
+                    targetBatch: batch
+                });
+                
+                // Match based on inferred data or if we're looking for School of Technology and email contains sot
+                if ((inferredSchool === school && inferredBatch === batch) || 
+                    (school === 'School of Technology' && email.includes('sot2428') && batch.startsWith('24'))) {
+                    
+                    console.log('✅ Student matches criteria (fallback):', studentDoc.id);
+                    matchingStudents.push({
+                        userDoc: studentDoc,
+                        userData: studentData,
+                        profileData: {
+                            school: inferredSchool || school,
+                            batch: inferredBatch || batch,
+                            fullName: studentData.fullName || studentData.name,
+                            regNumber: studentData.regNumber || studentData.registrationNumber || 'N/A'
+                        }
+                    });
+                }
+            });
+            
+            console.log(`📊 Students found with fallback approach: ${matchingStudents.length}`);
+        }
+        
+        if (matchingStudents.length === 0) {
+            console.log('❌ No students found matching criteria (even with fallback)');
+            studentsList.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #666;">
+                    <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                    <p>No students found for ${school} - ${batch}</p>
+                    <p style="font-size: 0.9rem; color: #999; margin-top: 10px;">Students may need to complete their profiles</p>
+                    <details style="margin-top: 15px; text-align: left; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <summary style="cursor: pointer; font-weight: bold;">Debug Info</summary>
+                        <p>Total students in database: ${allStudentsQuery.size}</p>
+                        <p>Students with role 'student': 4</p>
+                        <p>Students with profiles: 0</p>
+                        <p>Check console for detailed logs</p>
+                    </details>
+                </div>
+            `;
+            updateAttendanceSummary();
+            return;
+        }
+        
+        // Process matching students
+        matchingStudents.forEach(({ userDoc, userData, profileData }) => {
+            console.log('📝 Processing matched student:', {
+                id: userDoc.id,
+                userData: userData,
+                profileData: profileData
+            });
+            
+            const student = {
+                id: userDoc.id,
+                name: profileData.fullName || userData.fullName || userData.name || extractNameFromEmail(userData.email),
+                regNumber: profileData.regNumber || userData.regNumber || userData.registrationNumber || 'N/A',
+                email: userData.email,
+                school: profileData.school,
+                batch: profileData.batch
+            };
+            
+            loadedStudents.push(student);
+            // Default to absent
+            attendanceData.set(student.id, {
+                present: false,
+                studentId: student.id,
+                studentName: student.name,
+                regNumber: student.regNumber,
+                email: student.email
+            });
+        });
+        
+        // Sort students by name
+        loadedStudents.sort((a, b) => a.name.localeCompare(b.name));
+        
+        console.log(`✅ Successfully loaded ${loadedStudents.length} students:`, loadedStudents);
+        
+        // Render students cards
+        renderStudentsCards();
+        
+    } catch (error) {
+        console.error('❌ Error loading students:', error);
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack
+        });
+        
+        document.getElementById('studentsList').innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <p>Error loading students: ${error.message}</p>
+                <p style="font-size: 0.9rem; margin-top: 10px;">Check browser console for details</p>
+                <button onclick="loadStudentsList()" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Renders student cards with checkboxes
+ */
+function renderStudentsCards() {
+    const studentsList = document.getElementById('studentsList');
+    
+    studentsList.innerHTML = '';
+    
+    loadedStudents.forEach(student => {
+        const attendance = attendanceData.get(student.id);
+        const isPresent = attendance ? attendance.present : false;
+        
+        const studentCard = document.createElement('div');
+        studentCard.className = `student-card ${isPresent ? 'present' : 'absent'}`;
+        studentCard.onclick = () => toggleStudentAttendance(student.id);
+        
+        studentCard.innerHTML = `
+            <div class="student-info">
+                <h4>${student.name}</h4>
+                <p><strong>Reg No:</strong> ${student.regNumber}</p>
+            </div>
+            <input type="checkbox" 
+                   class="attendance-checkbox" 
+                   ${isPresent ? 'checked' : ''}
+                   onclick="event.stopPropagation(); toggleStudentAttendance('${student.id}')">
+        `;
+        
+        studentsList.appendChild(studentCard);
+    });
+    
+    updateAttendanceSummary();
+}
+
+/**
+ * Toggles attendance status for a specific student
+ * @param {string} studentId - The student ID
+ */
+function toggleStudentAttendance(studentId) {
+    const attendance = attendanceData.get(studentId);
+    if (attendance) {
+        attendance.present = !attendance.present;
+        attendanceData.set(studentId, attendance);
+        
+        // Re-render to update visual state
+        renderStudentsCards();
+        
+        console.log(`Toggled attendance for student ${studentId}: ${attendance.present ? 'Present' : 'Absent'}`);
+    }
+}
+
+/**
+ * Marks all students as present
+ */
+function markAllPresent() {
+    attendanceData.forEach((attendance, studentId) => {
+        attendance.present = true;
+        attendanceData.set(studentId, attendance);
+    });
+    
+    renderStudentsCards();
+    console.log('Marked all students as present');
+}
+
+/**
+ * Marks all students as absent
+ */
+function markAllAbsent() {
+    attendanceData.forEach((attendance, studentId) => {
+        attendance.present = false;
+        attendanceData.set(studentId, attendance);
+    });
+    
+    renderStudentsCards();
+    console.log('Marked all students as absent');
+}
+
+/**
+ * Updates the attendance summary display
+ */
+function updateAttendanceSummary() {
+    const totalStudents = loadedStudents.length;
+    const presentCount = Array.from(attendanceData.values()).filter(a => a.present).length;
+    
+    const summaryElement = document.getElementById('attendanceSummary');
+    if (summaryElement) {
+        summaryElement.textContent = `${presentCount} Present / ${totalStudents} Total`;
+    }
+}
+
+/**
+ * Submits the manual attendance to Firestore
+ */
+async function submitManualAttendance() {
+    if (loadedStudents.length === 0) {
+        alert('No students loaded. Please load students first.');
+        return;
+    }
+    
+    const school = document.getElementById('manualSchool').value;
+    const batchName = document.getElementById('manualBatch').value;
+    const subject = document.getElementById('manualSubject').value;
+    const periods = parseInt(document.getElementById('manualPeriods').value);
+    
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+        console.log('Submitting manual attendance...');
+        
+        const db = firebase.firestore();
+        const batchWrite = db.batch();
+        
+        // Prepare attendance records
+        const attendanceRecords = [];
+        
+        attendanceData.forEach((attendance, studentId) => {
+            const attendanceRecord = {
+                userId: studentId,
+                studentName: attendance.studentName,
+                regNumber: attendance.regNumber,
+                email: attendance.email,
+                school: school,
+                batch: batchName,
+                subject: subject,
+                periods: periods,
+                date: today,
+                status: attendance.present ? 'present' : 'absent',
+                markedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                markedBy: currentFaculty.uid,
+                facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
+                method: 'manual',
+                hasPhoto: false // Manual attendance doesn't have photo verification
+            };
+            
+            attendanceRecords.push(attendanceRecord);
+            
+            // Create a document in the attendances collection
+            const attendanceRef = db.collection('attendances').doc();
+            batchWrite.set(attendanceRef, attendanceRecord);
+        });
+        
+        // Commit the batch write
+        await batchWrite.commit();
+        
+        console.log(`Successfully submitted ${attendanceRecords.length} attendance records`);
+        
+        // Show success message
+        const presentCount = attendanceRecords.filter(record => record.status === 'present').length;
+        const absentCount = attendanceRecords.filter(record => record.status === 'absent').length;
+        
+        showSuccessMessage(
+            `Attendance submitted successfully!\n` +
+            `Present: ${presentCount}, Absent: ${absentCount}\n` +
+            `Subject: ${subject} (${periods} period${periods > 1 ? 's' : ''})`
+        );
+        
+        // Reset form
+        resetAttendanceForm();
+        
+    } catch (error) {
+        console.error('Error submitting attendance:', error);
+        alert(`Error submitting attendance: ${error.message}. Please try again.`);
+    }
+}
+
+/**
+ * Resets the attendance form and clears loaded data
+ */
+function resetAttendanceForm() {
+    // Clear form fields
+    document.getElementById('manualSchool').value = '';
+    document.getElementById('manualBatch').value = '';
+    document.getElementById('manualBatch').disabled = true;
+    document.getElementById('manualSubject').value = '';
+    document.getElementById('manualPeriods').value = '';
+    
+    // Hide students container
+    document.getElementById('studentsContainer').style.display = 'none';
+    
+    // Clear loaded data
+    loadedStudents = [];
+    attendanceData.clear();
+    
+    console.log('Attendance form reset');
+}
+
+/**
+ * Helper function to extract name from email if name is not available
+ * @param {string} email - The email address
+ * @returns {string} - Extracted name
+ */
+function extractNameFromEmail(email) {
+    if (!email) return 'Unknown Student';
+    
+    // Extract the part before @ and format it
+    const username = email.split('@')[0];
+    
+    // Replace dots and underscores with spaces and capitalize
+    return username
+        .replace(/[._]/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+}
+
+// Make functions globally accessible
+window.showSection = showSection;
+window.updateManualBatchOptions = updateManualBatchOptions;
+window.loadStudentsList = loadStudentsList;
+window.toggleStudentAttendance = toggleStudentAttendance;
+window.markAllPresent = markAllPresent;
+window.markAllAbsent = markAllAbsent;
+window.submitManualAttendance = submitManualAttendance;
+window.resetAttendanceForm = resetAttendanceForm;
