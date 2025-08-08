@@ -2009,7 +2009,7 @@ function displayAttendanceReport(reportData) {
     if (attendanceRecords.length === 0) {
         recordsTableBody.innerHTML = `
             <tr>
-                <td colspan="4" style="text-align: center; color: #666; padding: 20px;">
+                <td colspan="5" style="text-align: center; color: #666; padding: 20px;">
                     No attendance records found for this student and subject.
                 </td>
             </tr>
@@ -2031,11 +2031,19 @@ function displayAttendanceReport(reportData) {
             
             const periodsText = record.periods > 1 ? `${record.periods} periods` : '1 period';
             
+            const canViewPhoto = !!record.hasPhoto;
+            const viewBtn = canViewPhoto
+                ? `<button class="quick-action-btn" style="padding:6px 10px; border-radius:6px; font-size:12px;" onclick="viewAttendancePhoto('${record.id}')">
+                        <i class="fas fa-image"></i> View Photo
+                   </button>`
+                : `<span style="color:#999; font-size:12px;">No photo</span>`;
+
             row.innerHTML = `
                 <td>${formattedDate}</td>
                 <td>${statusIcon} ${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</td>
                 <td>${periodsText}</td>
                 <td>${record.facultyName}</td>
+                <td>${viewBtn}</td>
             `;
             
             recordsTableBody.appendChild(row);
@@ -2959,6 +2967,50 @@ function exportBatchToExcel() {
     }
 }
 
+// ===== Photo viewing functions =====
+async function viewAttendancePhoto(attendanceId) {
+    try {
+        const db = firebase.firestore();
+        if (!attendanceId) {
+            alert('Invalid record selected.');
+            return;
+        }
+        const doc = await db.collection('attendances').doc(attendanceId).get();
+        if (!doc.exists) {
+            alert('Attendance record not found.');
+            return;
+        }
+        const data = doc.data();
+        let photoData = data.photodata || data.photoData || data.photo || null;
+        if (!photoData) {
+            alert('No photo available for this record.');
+            return;
+        }
+        // Normalize base64 without data URL
+        if (/^[A-Za-z0-9+/=]+$/.test(photoData.substring(0, 50))) {
+            photoData = `data:image/jpeg;base64,${photoData}`;
+        }
+        const modal = document.getElementById('photoModal');
+        const imgEl = document.getElementById('attendancePhotoImg');
+        const metaEl = document.getElementById('photoMeta');
+        imgEl.src = photoData;
+        metaEl.textContent = `${data.subject || ''} • ${data.date || ''} • ${data.regNumber || data.studentReg || ''}`;
+        modal.style.display = 'block';
+    } catch (err) {
+        console.error('Error loading attendance photo:', err);
+        alert('Failed to load photo.');
+    }
+}
+
+function closePhotoModal() {
+    const modal = document.getElementById('photoModal');
+    const imgEl = document.getElementById('attendancePhotoImg');
+    const metaEl = document.getElementById('photoMeta');
+    imgEl.src = '';
+    metaEl.textContent = '';
+    modal.style.display = 'none';
+}
+
 // Make functions globally accessible
 window.showSection = showSection;
 window.updateManualBatchOptions = updateManualBatchOptions;
@@ -2981,3 +3033,5 @@ window.generateBatchAttendanceReport = generateBatchAttendanceReport;
 window.resetBatchReportForm = resetBatchReportForm;
 window.printBatchReport = printBatchReport;
 window.exportBatchToExcel = exportBatchToExcel;
+window.viewAttendancePhoto = viewAttendancePhoto;
+window.closePhotoModal = closePhotoModal;
