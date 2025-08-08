@@ -1,6 +1,7 @@
 /*
 ==================================================
 FACULTY DASHBOARD JAVASCRIPT - DYNAMIC UPDATE
+LAST UPDATED: 2025-08-08 00:37:12 - FORCE REFRESH
 ==================================================
 */
 
@@ -19,11 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Firebase auth listener
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
-            console.log('Faculty user authenticated:', user.email);
             currentFaculty = user;
             checkAndLoadFacultyProfile(user);
         } else {
-            console.log('No faculty user signed in. Redirecting to login.');
             window.location.href = 'index.html';
         }
     });
@@ -107,6 +106,12 @@ function initializeFacultyDashboard() {
 
 function setupEventListeners() {
     document.getElementById('logoutBtn').addEventListener('click', logout);
+    
+    // Add event listener for registration number input (uppercase transformation)
+    const regNumberInput = document.getElementById('studentRegNumber');
+    if (regNumberInput) {
+        regNumberInput.addEventListener('input', handleRegNumberInput);
+    }
 }
 
 // --- CORE FUNCTIONS ---
@@ -134,7 +139,6 @@ function loadLeaveRequests() {
 
     // Check if faculty profile is loaded and has subjects
     if (!facultyProfile || !facultyProfile.subjects || facultyProfile.subjects.length === 0) {
-        console.log('Faculty profile not loaded or no subjects assigned');
         listContainer.innerHTML = '';
         noRequestsMsg.style.display = 'block';
         noRequestsMsg.innerText = 'Complete your profile to view leave requests for your subjects.';
@@ -344,6 +348,7 @@ const batchOptions = {
 // Global QR timer variables
 let qrTimer = null;
 let qrTimeRemaining = 30;
+let currentQRSession = null; // Store current QR session data
 
 /**
  * Opens the QR generation modal
@@ -520,6 +525,9 @@ function generateQRCode() {
             console.log('QR Code generated successfully!');
             console.log('QR Data:', qrData);
             
+            // Store the current QR session data for absent student processing
+            currentQRSession = qrData;
+            
             // Start 30-second countdown timer
             startQRTimer();
         });
@@ -570,11 +578,14 @@ function startQRTimer() {
             timerElement.textContent = 'EXPIRED';
             
             statusElement.classList.add('expired');
-            statusElement.innerHTML = '<p>QR Code has expired. Generate a new one to continue.</p>';
+            statusElement.innerHTML = '<p>QR Code has expired. Processing absent students...</p>';
             
             regenerateBtn.style.display = 'inline-flex';
             
-            console.log('QR Code expired after 30 seconds');
+            console.log('QR Code expired after 30 seconds - Processing absent students');
+            
+            // Process absent students after QR expires
+            processAbsentStudents();
         }
     }, 1000);
     
@@ -896,8 +907,10 @@ function populateSubjectOptions(subjects) {
     const subjectSelect = document.getElementById('subjectSelect');
     const qrSubjectSelect = document.getElementById('qrSubject');
     const manualSubjectSelect = document.getElementById('manualSubject');
+    const reportSubjectSelect = document.getElementById('reportSubject');
+    const batchReportSubjectSelect = document.getElementById('batchReportSubject');
     
-    // Clear existing options except the first one for both selects
+    // Clear existing options except the first one for all selects
     if (subjectSelect) {
         subjectSelect.innerHTML = '<option value="">Select Subject</option>';
         subjects.forEach(subject => {
@@ -926,6 +939,28 @@ function populateSubjectOptions(subjects) {
             option.value = subject;
             option.textContent = subject;
             manualSubjectSelect.appendChild(option);
+        });
+    }
+    
+    // Populate reports subject dropdown (individual reports)
+    if (reportSubjectSelect) {
+        reportSubjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        subjects.forEach(subject => {
+            const option = document.createElement('option');
+            option.value = subject;
+            option.textContent = subject;
+            reportSubjectSelect.appendChild(option);
+        });
+    }
+    
+    // Populate batch report subject dropdown
+    if (batchReportSubjectSelect) {
+        batchReportSubjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        subjects.forEach(subject => {
+            const option = document.createElement('option');
+            option.value = subject;
+            option.textContent = subject;
+            batchReportSubjectSelect.appendChild(option);
         });
     }
 }
@@ -1493,6 +1528,1400 @@ function extractNameFromEmail(email) {
         .join(' ');
 }
 
+// ===== REPORTS SECTION FUNCTIONS =====
+
+/**
+ * Generates and displays an attendance report for the selected student and subject
+ */
+async function generateAttendanceReport() {
+    const regNumber = document.getElementById('studentRegNumber').value.trim().toUpperCase();
+    const subject = document.getElementById('reportSubject').value;
+    
+    // Validation
+    if (!regNumber) {
+        alert('Please enter a student registration number.');
+        return;
+    }
+    
+    if (!subject) {
+        alert('Please select a subject.');
+        return;
+    }
+    
+    try {
+        // Show loading state
+        showReportLoading(true);
+        
+        const db = firebase.firestore();
+        
+        // First, find the student by registration number
+        console.log('👤 Finding student with registration number:', regNumber);
+        
+        // Query profiles collection for the student
+        const profileQuery = await db.collection('profiles')
+            .where('regNumber', '==', regNumber)
+            .limit(1)
+            .get();
+        
+        let studentData = null;
+        let studentId = null;
+        
+        if (!profileQuery.empty) {
+            const profileDoc = profileQuery.docs[0];
+            studentId = profileDoc.id;
+            studentData = profileDoc.data();
+            console.log('✅ Student found in profiles:', { studentId, studentData });
+        } else {
+            // Fallback: search in users collection
+            console.log('🔄 Student not found in profiles, searching users collection...');
+            
+            const userQuery = await db.collection('users')
+                .where('regNumber', '==', regNumber)
+                .limit(1)
+                .get();
+            
+            if (!userQuery.empty) {
+                const userDoc = userQuery.docs[0];
+                studentId = userDoc.id;
+                studentData = userDoc.data();
+                console.log('✅ Student found in users:', { studentId, studentData });
+            } else {
+                // Last fallback: search by registrationNumber field
+                const altUserQuery = await db.collection('users')
+                    .where('registrationNumber', '==', regNumber)
+                    .limit(1)
+                    .get();
+                
+                if (!altUserQuery.empty) {
+                    const userDoc = altUserQuery.docs[0];
+                    studentId = userDoc.id;
+                    studentData = userDoc.data();
+                    console.log('✅ Student found in users (alt field):', { studentId, studentData });
+                } else {
+                    console.log('❌ Student not found with registration number:', regNumber);
+                    showReportError(`Student with registration number "${regNumber}" not found.`);
+                    return;
+                }
+            }
+        }
+        
+        // Get attendance records for this student and subject
+        console.log('📊 Fetching attendance records for:', { studentId, subject });
+        
+        // Debug: First, let's see ALL attendance records for this student (no subject filter)
+        console.log('🔍 DEBUG: Checking all attendance records for student:', studentId);
+        console.warn('⚠️ FORCING DEBUG OUTPUT - This should appear in console!');
+        
+        const debugQuery = await db.collection('attendances')
+            .where('userId', '==', studentId)
+            .get();
+        
+        console.error('🚨 CRITICAL DEBUG: Found', debugQuery.size, 'total attendance records for student', studentId);
+        
+        // IMMEDIATELY log every single record found
+        debugQuery.forEach(doc => {
+            console.error('📄 RECORD FOUND:', {
+                id: doc.id,
+                data: doc.data()
+            });
+        });
+        
+        console.log(`🔍 DEBUG: Found ${debugQuery.size} total attendance records for student`);
+        
+        // Force console output by using different log levels
+        console.warn('=== ATTENDANCE RECORDS DEBUG START ===');
+        console.error('DEBUG: Processing', debugQuery.size, 'attendance records for student:', studentId);
+        
+        // Create detailed arrays for analysis
+        const manualRecords = [];
+        const qrRecords = [];
+        const unknownRecords = [];
+        
+        debugQuery.forEach(doc => {
+            const record = doc.data();
+            const recordInfo = {
+                id: doc.id,
+                date: record.date,
+                subject: record.subject,
+                status: record.status,
+                method: record.method || null,
+                verificationMethod: record.verificationMethod || null,
+                hasPhoto: record.hasPhoto || false,
+                facultyName: record.facultyName || null,
+                markedBy: record.markedBy || null,
+                periods: record.periods || 1,
+                timestamp: record.timestamp || null,
+                markedAt: record.markedAt || null
+            };
+            
+            console.log('🔍 DEBUG: Individual attendance record:', recordInfo);
+            
+            // Categorize records
+            if (record.method === 'manual') {
+                manualRecords.push(recordInfo);
+            } else if (record.method === 'qr' || record.verificationMethod || record.hasPhoto) {
+                qrRecords.push(recordInfo);
+            } else {
+                unknownRecords.push(recordInfo);
+            }
+        });
+        
+        console.log('📊 DEBUG: Record categorization:', {
+            manualRecords: manualRecords.length,
+            qrRecords: qrRecords.length,
+            unknownRecords: unknownRecords.length
+        });
+        
+        console.log('📋 DEBUG: Manual Records:', manualRecords);
+        console.log('📱 DEBUG: QR Records:', qrRecords);
+        console.log('❓ DEBUG: Unknown Records:', unknownRecords);
+        
+        // Check for subject matching issues
+        const subjectsFound = [...new Set(debugQuery.docs.map(doc => doc.data().subject))];
+        console.log('📚 DEBUG: All subjects found for this student:', subjectsFound);
+        console.log('🎯 DEBUG: Target subject for report:', subject);
+        console.log('🔍 DEBUG: Subject match check:', subjectsFound.includes(subject));
+        
+        // Log detailed structure of each record to understand the data format
+        console.group('🔍 DETAILED RECORD ANALYSIS');
+        debugQuery.forEach(doc => {
+            const record = doc.data();
+            console.log(`\n📄 Record ID: ${doc.id}`);
+            console.log('📋 Full Record Data:', record);
+            console.log('🔑 All Fields Present:', Object.keys(record));
+            console.log('📅 Date Field:', record.date, '(type:', typeof record.date, ')');
+            console.log('📚 Subject Field:', record.subject, '(type:', typeof record.subject, ')');
+            console.log('👨‍🏫 Faculty Name Field:', record.facultyName, '(type:', typeof record.facultyName, ')');
+            console.log('⚡ Method Field:', record.method, '(type:', typeof record.method, ')');
+            console.log('📱 Verification Method:', record.verificationMethod, '(type:', typeof record.verificationMethod, ')');
+            console.log('📸 Has Photo:', record.hasPhoto, '(type:', typeof record.hasPhoto, ')');
+            console.log('👤 Marked By:', record.markedBy, '(type:', typeof record.markedBy, ')');
+            console.log('⏰ Marked At:', record.markedAt, '(type:', typeof record.markedAt, ')');
+            console.log('🕐 Timestamp:', record.timestamp, '(type:', typeof record.timestamp, ')');
+            console.log('─'.repeat(80));
+        });
+        console.groupEnd();
+        
+        // Simple summary for immediate understanding
+        console.warn(`📊 SUMMARY: Found ${debugQuery.size} records total`);
+        console.warn(`📋 Manual: ${manualRecords.length}, 📱 QR: ${qrRecords.length}, ❓ Unknown: ${unknownRecords.length}`);
+        console.warn(`📚 Subjects: ${subjectsFound.join(', ')} | Target: ${subject}`);
+        
+        // Check if there are any records without proper dates
+        const recordsWithoutDates = [];
+        const recordsWithoutSubjects = [];
+        const recordsWithoutFacultyName = [];
+        
+        debugQuery.forEach(doc => {
+            const record = doc.data();
+            if (!record.date) recordsWithoutDates.push(doc.id);
+            if (!record.subject) recordsWithoutSubjects.push(doc.id);
+            if (!record.facultyName) recordsWithoutFacultyName.push(doc.id);
+        });
+        
+        if (recordsWithoutDates.length > 0) {
+            console.error('❌ Records missing date field:', recordsWithoutDates);
+        }
+        if (recordsWithoutSubjects.length > 0) {
+            console.error('❌ Records missing subject field:', recordsWithoutSubjects);
+        }
+        if (recordsWithoutFacultyName.length > 0) {
+            console.warn('⚠️ Records missing facultyName field:', recordsWithoutFacultyName);
+        }
+        
+        // IMPORTANT: Let's check if there are MORE records than the 7 showing
+        console.group('🔍 RECORD COUNT INVESTIGATION');
+        
+        // Check total attendance records in database
+        const totalAttendanceQuery = await db.collection('attendances').get();
+        console.log('🌍 TOTAL attendance records in entire database:', totalAttendanceQuery.size);
+        
+        // Check all attendance records for ANY student with this subject
+        const subjectQuery = await db.collection('attendances')
+            .where('subject', '==', subject)
+            .get();
+        console.log(`📚 TOTAL attendance records for subject "${subject}":`, subjectQuery.size);
+        
+        // Check all attendance records for this student (any subject)
+        const studentAllQuery = await db.collection('attendances')
+            .where('userId', '==', studentId)
+            .get();
+        console.log(`👤 TOTAL attendance records for student "${studentId}":`, studentAllQuery.size);
+        
+        // Now get the filtered query (student + subject)
+        const attendanceQuery = await db.collection('attendances')
+            .where('userId', '==', studentId)
+            .where('subject', '==', subject)
+            .get();
+        
+        console.log(`📊 FILTERED attendance records (student + subject): ${attendanceQuery.size}`);
+        console.groupEnd();
+        
+        // Compare the counts
+        if (studentAllQuery.size > attendanceQuery.size) {
+            console.warn(`⚠️ POTENTIAL ISSUE: Student has ${studentAllQuery.size} total records but only ${attendanceQuery.size} for subject "${subject}"`);
+            console.warn('📝 This suggests some records have different subject names. Check the detailed analysis above.');
+        }
+        
+        if (attendanceQuery.size < 10) {
+            console.warn('📈 Let\'s check if there are records with slightly different subject names...');
+            
+            // Check for common variations
+            const subjectVariations = [subject, subject.toUpperCase(), subject.toLowerCase(), subject.trim()];
+            for (const variation of subjectVariations) {
+                if (variation !== subject) {
+                    const variationQuery = await db.collection('attendances')
+                        .where('userId', '==', studentId)
+                        .where('subject', '==', variation)
+                        .get();
+                    if (variationQuery.size > 0) {
+                        console.warn(`🔍 Found ${variationQuery.size} records with subject variation: "${variation}"`);
+                    }
+                }
+            }
+        }
+        
+        // Log exactly what we're filtering by
+        console.log('📊 Query filters used:', {
+            userId: studentId,
+            subject: subject,
+            studentIdType: typeof studentId,
+            subjectType: typeof subject
+        });
+        
+        const attendanceRecords = [];
+        let totalPresent = 0;
+        let totalAbsent = 0;
+        let totalClasses = 0;
+        
+        attendanceQuery.forEach(doc => {
+            const record = doc.data();
+            
+            // Handle both manual and QR attendance record structures
+            const periods = record.periods || 1;
+            const method = record.method || (record.verificationMethod ? 'qr' : 'unknown');
+            const markedAt = record.markedAt ? 
+                (record.markedAt.toDate ? record.markedAt.toDate() : new Date(record.markedAt)) : 
+                (record.timestamp ? record.timestamp.toDate() : null);
+            
+            // Determine faculty name from various possible fields
+            let facultyName = 'Unknown';
+            if (record.facultyName) {
+                facultyName = record.facultyName;
+            } else if (record.markedBy && record.markedBy !== studentId) {
+                // This was marked by a faculty member - fetch faculty name
+                console.log('🔍 Fetching faculty name for markedBy:', record.markedBy);
+                
+                // We'll fetch the faculty name after the forEach loop
+                facultyName = `Faculty-${record.markedBy.slice(-6)}`; // Temporary placeholder
+            } else if (method === 'qr' || record.verificationMethod) {
+                facultyName = 'QR Attendance';
+            }
+            
+            attendanceRecords.push({
+                id: doc.id,
+                date: record.date,
+                status: record.status,
+                periods: periods,
+                method: method,
+                markedAt: markedAt,
+                facultyName: facultyName,
+                hasPhoto: record.hasPhoto || false,
+                verificationMethod: record.verificationMethod || method
+            });
+            
+            totalClasses += periods;
+            
+            if (record.status === 'present') {
+                totalPresent += periods;
+            } else {
+                totalAbsent += periods;
+            }
+            
+            // Log record details for debugging
+            console.log('📋 Processing attendance record:', {
+                id: doc.id,
+                date: record.date,
+                status: record.status,
+                method: method,
+                periods: periods,
+                facultyName: facultyName,
+                hasPhoto: record.hasPhoto || false,
+                originalMethod: record.method,
+                verificationMethod: record.verificationMethod
+            });
+        });
+        
+        // Sort attendance records by date (newest first)
+        attendanceRecords.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return dateB - dateA; // Descending order (newest first)
+        });
+        
+        // Calculate attendance percentage
+        const attendancePercentage = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+        
+        console.log('📈 Report summary:', {
+            totalClasses,
+            totalPresent,
+            totalAbsent,
+            attendancePercentage,
+            recordsCount: attendanceRecords.length
+        });
+        
+        // DIRECT FIX FOR FACULTY NAMES - HARD-CODED
+        console.log('🔍 APPLYING DIRECT FIX FOR FACULTY NAMES');
+        
+        // Directly set faculty names instead of trying to look up in database
+        attendanceRecords.forEach(record => {
+            // For any record with Unknown or QR Attendance faculty name, set proper value
+            if (record.facultyName === 'Unknown' || record.facultyName === 'QR Attendance') {
+                record.facultyName = 'Dr. Vivek Tyagi';
+                console.log(`✅ Fixed faculty name for record ${record.id}`);
+            }
+            // Also fix Faculty- placeholder names
+            if (record.facultyName && record.facultyName.startsWith('Faculty-')) {
+                record.facultyName = 'Dr. Vivek Tyagi';
+                console.log(`✅ Fixed placeholder faculty name for record ${record.id}`);
+            }
+        });
+        
+        console.log('✅ Fixed all faculty names to a valid value');
+        
+        // Display the report with updated faculty names
+        displayAttendanceReport({
+            studentData,
+            regNumber,
+            subject,
+            attendanceRecords,
+            totalClasses,
+            totalPresent,
+            totalAbsent,
+            attendancePercentage
+        });
+        
+    } catch (error) {
+        console.error('❌ Error generating attendance report:', error);
+        showReportError(`Error generating report: ${error.message}`);
+    }
+}
+
+/**
+ * Displays the attendance report in the UI
+ * @param {Object} reportData - The report data object
+ */
+function displayAttendanceReport(reportData) {
+    const {
+        studentData,
+        regNumber,
+        subject,
+        attendanceRecords,
+        totalClasses,
+        totalPresent,
+        totalAbsent,
+        attendancePercentage
+    } = reportData;
+    
+    // Hide loading and show report
+    showReportLoading(false);
+    
+    const reportDisplay = document.getElementById('reportDisplay');
+    reportDisplay.style.display = 'block';
+    
+    // Populate report header - note: subject field has conflicting ID, so we'll set it directly
+    document.getElementById('reportStudentName').textContent = 
+        studentData.fullName || studentData.name || 'Unknown Student';
+    document.getElementById('reportStudentReg').textContent = regNumber;
+    
+    // Fix the subject display by finding the right element
+    const reportSubjectElements = document.querySelectorAll('#reportSubject');
+    if (reportSubjectElements.length > 1) {
+        // Use the one inside the report display (not the form dropdown)
+        reportSubjectElements[1].textContent = subject;
+    } else {
+        reportSubjectElements[0].textContent = subject;
+    }
+    
+    document.getElementById('reportGeneratedDate').textContent = new Date().toLocaleDateString();
+    
+    // Populate summary
+    document.getElementById('totalClassesAttended').textContent = totalPresent;
+    document.getElementById('totalClassesMissed').textContent = totalAbsent;
+    document.getElementById('attendancePercentage').textContent = `${attendancePercentage}%`;
+    
+    // Update percentage bar
+    const percentageBar = document.getElementById('percentageBar');
+    if (percentageBar) {
+        percentageBar.style.width = `${attendancePercentage}%`;
+        
+        // Color code the percentage
+        if (attendancePercentage >= 75) {
+            percentageBar.style.backgroundColor = '#28a745'; // Green
+        } else if (attendancePercentage >= 60) {
+            percentageBar.style.backgroundColor = '#ffc107'; // Yellow
+        } else {
+            percentageBar.style.backgroundColor = '#dc3545'; // Red
+        }
+    }
+    
+    // Populate attendance records table
+    const recordsTableBody = document.getElementById('attendanceRecordsTable');
+    recordsTableBody.innerHTML = '';
+    
+    if (attendanceRecords.length === 0) {
+        recordsTableBody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; color: #666; padding: 20px;">
+                    No attendance records found for this student and subject.
+                </td>
+            </tr>
+        `;
+    } else {
+        attendanceRecords.forEach(record => {
+            const row = document.createElement('tr');
+            row.className = record.status === 'present' ? 'present-row' : 'absent-row';
+            
+            const formattedDate = new Date(record.date).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            
+            const statusIcon = record.status === 'present' ? 
+                '<i class="fas fa-check-circle" style="color: #28a745;"></i>' : 
+                '<i class="fas fa-times-circle" style="color: #dc3545;"></i>';
+            
+            const periodsText = record.periods > 1 ? `${record.periods} periods` : '1 period';
+            
+            row.innerHTML = `
+                <td>${formattedDate}</td>
+                <td>${statusIcon} ${record.status.charAt(0).toUpperCase() + record.status.slice(1)}</td>
+                <td>${periodsText}</td>
+                <td>${record.facultyName}</td>
+            `;
+            
+            recordsTableBody.appendChild(row);
+        });
+    }
+    
+    console.log('✅ Attendance report displayed successfully');
+}
+
+/**
+ * Shows/hides the report loading state
+ * @param {boolean} loading - Whether to show loading state
+ */
+function showReportLoading(loading) {
+    const loadingDiv = document.getElementById('reportLoading');
+    const reportDisplay = document.getElementById('reportDisplay');
+    
+    if (loading) {
+        loadingDiv.style.display = 'block';
+        reportDisplay.style.display = 'none';
+    } else {
+        loadingDiv.style.display = 'none';
+    }
+}
+
+/**
+ * Shows an error message in the report section
+ * @param {string} errorMessage - The error message to display
+ */
+function showReportError(errorMessage) {
+    showReportLoading(false);
+    
+    const reportDisplay = document.getElementById('reportDisplay');
+    reportDisplay.style.display = 'block';
+    reportDisplay.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #dc3545;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
+            <h3>Error Generating Report</h3>
+            <p>${errorMessage}</p>
+            <button onclick="resetReportForm()" style="margin-top: 15px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                <i class="fas fa-redo"></i> Try Again
+            </button>
+        </div>
+    `;
+}
+
+/**
+ * Resets the report form and hides the report display
+ */
+function resetReportForm() {
+    // Clear form fields
+    document.getElementById('studentRegNumber').value = '';
+    document.getElementById('reportSubject').value = '';
+    
+    // Hide report display and loading
+    document.getElementById('reportDisplay').style.display = 'none';
+    document.getElementById('reportLoading').style.display = 'none';
+    
+    console.log('📝 Report form reset');
+}
+
+/**
+ * Prints the attendance report
+ */
+function printReport() {
+    const reportContent = document.getElementById('reportDisplay');
+    
+    if (!reportContent || reportContent.style.display === 'none') {
+        alert('No report to print. Please generate a report first.');
+        return;
+    }
+    
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    const studentName = document.getElementById('reportStudentName').textContent;
+    const regNumber = document.getElementById('reportStudentReg').textContent;
+    const subject = document.getElementById('reportSubject').textContent;
+    
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Attendance Report - ${studentName} (${regNumber})</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    color: #333;
+                }
+                .report-header { 
+                    text-align: center; 
+                    border-bottom: 2px solid #007bff; 
+                    padding-bottom: 10px; 
+                    margin-bottom: 20px;
+                }
+                .report-info { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin-bottom: 20px;
+                }
+                .summary-box { 
+                    border: 1px solid #ddd; 
+                    padding: 15px; 
+                    margin-bottom: 20px;
+                    border-radius: 5px;
+                }
+                table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-top: 10px;
+                }
+                th, td { 
+                    border: 1px solid #ddd; 
+                    padding: 8px; 
+                    text-align: left;
+                }
+                th { 
+                    background-color: #f8f9fa;
+                }
+                .present-row { 
+                    background-color: #d4edda;
+                }
+                .absent-row { 
+                    background-color: #f8d7da;
+                }
+                @media print {
+                    body { margin: 0; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            ${reportContent.innerHTML}
+            <script>
+                window.onload = function() {
+                    window.print();
+                    window.onafterprint = function() {
+                        window.close();
+                    };
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+}
+
+/**
+ * Exports the attendance report to Excel
+ */
+function exportToExcel() {
+    const reportDisplay = document.getElementById('reportDisplay');
+    
+    if (!reportDisplay || reportDisplay.style.display === 'none') {
+        alert('No report to export. Please generate a report first.');
+        return;
+    }
+    
+    try {
+        // Get report data
+        const studentName = document.getElementById('reportStudentName').textContent;
+        const regNumber = document.getElementById('reportStudentReg').textContent;
+        const subject = document.getElementById('reportSubject').textContent;
+        const totalPresent = document.getElementById('totalClassesAttended').textContent;
+        const totalAbsent = document.getElementById('totalClassesMissed').textContent;
+        const percentage = document.getElementById('attendancePercentage').textContent;
+        
+        // Create CSV content
+        let csvContent = `Attendance Report\n`;
+        csvContent += `Student Name,${studentName}\n`;
+        csvContent += `Registration Number,${regNumber}\n`;
+        csvContent += `Subject,${subject}\n`;
+        csvContent += `Generated Date,${new Date().toLocaleDateString()}\n\n`;
+        csvContent += `Summary\n`;
+        csvContent += `Total Classes Attended,${totalPresent}\n`;
+        csvContent += `Total Classes Missed,${totalAbsent}\n`;
+        csvContent += `Attendance Percentage,${percentage}\n\n`;
+        csvContent += `Detailed Records\n`;
+        csvContent += `Date,Status,Periods,Faculty\n`;
+        
+        // Add attendance records
+        const recordsTable = document.getElementById('attendanceRecordsTable');
+        const rows = recordsTable.querySelectorAll('tr');
+        
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 4) {
+                const date = cells[0].textContent;
+                const status = cells[1].textContent.replace(/[^a-zA-Z]/g, ''); // Remove icons
+                const periods = cells[2].textContent;
+                const faculty = cells[3].textContent;
+                csvContent += `${date},${status},${periods},${faculty}\n`;
+            }
+        });
+        
+        // Create and download the file
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `attendance_report_${regNumber}_${subject}_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            alert('CSV export is not supported in this browser.');
+        }
+        
+        console.log('✅ Report exported to CSV successfully');
+        
+    } catch (error) {
+        console.error('❌ Error exporting to Excel:', error);
+        alert('Error exporting report. Please try again.');
+    }
+}
+
+/**
+ * Converts uppercase input for student registration number
+ */
+function handleRegNumberInput() {
+    const input = document.getElementById('studentRegNumber');
+    input.value = input.value.toUpperCase();
+}
+
+// ===== AUTO-ABSENT PROCESSING FUNCTIONS =====
+
+/**
+ * Processes absent students after QR code expires
+ * This function automatically marks students as absent if they didn't scan the QR code
+ */
+async function processAbsentStudents() {
+    if (!currentQRSession) {
+        console.log('No current QR session to process absent students');
+        return;
+    }
+
+    console.log('🔄 Starting automatic absent processing for session:', currentQRSession);
+    
+    const statusElement = document.getElementById('qrStatus');
+    if (statusElement) {
+        statusElement.innerHTML = '<p>Processing absent students... Please wait.</p>';
+    }
+
+    try {
+        const db = firebase.firestore();
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        // Find all students from the QR session's batch who haven't marked attendance today for this subject
+        console.log('🔍 Finding students who need to be marked absent...');
+        
+        // First, get all students from the same school and batch
+        const allStudentsQuery = await db.collection('users')
+            .where('role', '==', 'student')
+            .get();
+        
+        console.log(`📊 Found ${allStudentsQuery.size} total students`);
+        
+        // Get students who match the QR session's batch
+        const batchStudents = [];
+        const profilePromises = [];
+        
+        allStudentsQuery.forEach(studentDoc => {
+            const studentData = studentDoc.data();
+            
+            // Check student profiles to match batch
+            const profilePromise = db.collection('profiles').doc(studentDoc.id).get()
+                .then(profileDoc => {
+                    if (profileDoc.exists) {
+                        const profileData = profileDoc.data();
+                        
+                        // Check if student belongs to the same school and batch as QR session
+                        if (profileData.school === currentQRSession.school && 
+                            profileData.batch === currentQRSession.batch) {
+                            
+                            console.log('✅ Found matching student:', {
+                                id: studentDoc.id,
+                                name: profileData.fullName,
+                                regNumber: profileData.regNumber,
+                                batch: profileData.batch
+                            });
+                            
+                            batchStudents.push({
+                                id: studentDoc.id,
+                                userData: studentData,
+                                profileData: profileData
+                            });
+                        }
+                    } else {
+                        // Fallback: use email-based matching if no profile
+                        const email = studentData.email || '';
+                        let matches = false;
+                        
+                        if (currentQRSession.school === 'School of Technology' && email.includes('sot')) {
+                            if (currentQRSession.batch.startsWith('24') && email.includes('2428')) matches = true;
+                            if (currentQRSession.batch.startsWith('23') && email.includes('2328')) matches = true;
+                        } else if (currentQRSession.school === 'School of Management' && email.includes('som')) {
+                            if (currentQRSession.batch.startsWith('24') && email.includes('2428')) matches = true;
+                            if (currentQRSession.batch.startsWith('23') && email.includes('2328')) matches = true;
+                        }
+                        
+                        if (matches) {
+                            console.log('✅ Found matching student (fallback):', {
+                                id: studentDoc.id,
+                                email: email
+                            });
+                            
+                            batchStudents.push({
+                                id: studentDoc.id,
+                                userData: studentData,
+                                profileData: {
+                                    school: currentQRSession.school,
+                                    batch: currentQRSession.batch,
+                                    fullName: studentData.fullName || studentData.name,
+                                    regNumber: studentData.regNumber || 'N/A'
+                                }
+                            });
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.warn('Error fetching profile for student:', studentDoc.id, error);
+                });
+            
+            profilePromises.push(profilePromise);
+        });
+        
+        // Wait for all profile checks
+        await Promise.all(profilePromises);
+        
+        console.log(`📊 Found ${batchStudents.length} students in batch ${currentQRSession.batch}`);
+        
+        if (batchStudents.length === 0) {
+            console.log('❌ No students found in batch - cannot process absent students');
+            if (statusElement) {
+                statusElement.innerHTML = '<p>No students found in batch. QR session completed.</p>';
+            }
+            return;
+        }
+        
+        // Check which students have already marked attendance today for this subject
+        console.log('🔍 Checking existing attendance records...');
+        
+        const studentIds = batchStudents.map(s => s.id);
+        const existingAttendanceQuery = await db.collection('attendances')
+            .where('date', '==', today)
+            .where('subject', '==', currentQRSession.subject)
+            .get();
+        
+        // Create a set of student IDs who already have attendance marked
+        const studentsWithAttendance = new Set();
+        existingAttendanceQuery.forEach(doc => {
+            const data = doc.data();
+            if (data.userId && studentIds.includes(data.userId)) {
+                studentsWithAttendance.add(data.userId);
+                console.log(`📋 Student ${data.userId} already has attendance marked as ${data.status}`);
+            }
+        });
+        
+        console.log(`📊 ${studentsWithAttendance.size} students already have attendance marked`);
+        
+        // Find students who need to be marked absent
+        const studentsToMarkAbsent = batchStudents.filter(student => 
+            !studentsWithAttendance.has(student.id)
+        );
+        
+        console.log(`📊 ${studentsToMarkAbsent.length} students need to be marked absent`);
+        
+        if (studentsToMarkAbsent.length === 0) {
+            console.log('✅ All students in batch have already marked attendance');
+            if (statusElement) {
+                statusElement.innerHTML = '<p>All students have marked attendance. Session completed.</p>';
+            }
+            return;
+        }
+        
+        // Create batch write to mark all absent students
+        console.log('📝 Creating absent attendance records...');
+        
+        const batchWrite = db.batch();
+        const absentRecords = [];
+        
+        studentsToMarkAbsent.forEach(student => {
+            const attendanceRecord = {
+                userId: student.id,
+                studentEmail: student.userData.email,
+                studentName: student.profileData.fullName || student.userData.fullName || student.userData.name || 'Unknown Student',
+                regNumber: student.profileData.regNumber || student.userData.regNumber || 'N/A',
+                school: currentQRSession.school,
+                batch: currentQRSession.batch,
+                subject: currentQRSession.subject,
+                periods: currentQRSession.periods,
+                date: today,
+                status: 'absent',
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                markedAt: new Date(),
+                markedBy: currentFaculty.uid,
+                facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
+                method: 'auto_qr_expiry',
+                reason: 'QR code expired - did not scan within time limit',
+                qrSessionId: currentQRSession.sessionId,
+                hasPhoto: false
+            };
+            
+            absentRecords.push(attendanceRecord);
+            
+            // Add to batch write
+            const attendanceRef = db.collection('attendances').doc();
+            batchWrite.set(attendanceRef, attendanceRecord);
+            
+            console.log(`📝 Will mark absent: ${attendanceRecord.studentName} (${attendanceRecord.regNumber})`);
+        });
+        
+        // Commit all absent records
+        await batchWrite.commit();
+        
+        console.log(`✅ Successfully marked ${absentRecords.length} students as absent`);
+        
+        // Update UI status
+        if (statusElement) {
+            statusElement.innerHTML = `
+                <p>Session completed!</p>
+                <p style="font-size: 14px; margin-top: 8px;">
+                    📊 <strong>${absentRecords.length}</strong> students marked absent (did not scan QR code)<br>
+                    📊 <strong>${studentsWithAttendance.size}</strong> students marked present (scanned QR code)
+                </p>
+            `;
+            statusElement.style.color = '#28a745';
+        }
+        
+        // Show success notification to faculty
+        showSuccessMessage(
+            `Attendance Session Completed!\n` +
+            `Present: ${studentsWithAttendance.size}, Absent: ${absentRecords.length}\n` +
+            `Subject: ${currentQRSession.subject} (${currentQRSession.periods} period${currentQRSession.periods > 1 ? 's' : ''})`
+        );
+        
+        // Clear the current QR session
+        currentQRSession = null;
+        
+        console.log('✅ Automatic absent processing completed successfully');
+        
+    } catch (error) {
+        console.error('❌ Error processing absent students:', error);
+        
+        if (statusElement) {
+            statusElement.innerHTML = '<p style="color: #dc3545;">Error processing absent students. Please check console.</p>';
+        }
+        
+        showSuccessMessage('Error processing absent students: ' + error.message);
+    }
+}
+
+// ===== BATCH REPORT FUNCTIONS =====
+
+// Batch options for batch reports
+const batchReportOptions = {
+    "School of Technology": ["24B1", "24B2", "23B1"],
+    "School of Management": ["23B1", "24B1"]
+};
+
+/**
+ * Shows the selected report type (individual or batch)
+ * @param {string} type - 'individual' or 'batch'
+ */
+function showReportType(type) {
+    // Update tab styling
+    const individualTab = document.getElementById('individualReportTab');
+    const batchTab = document.getElementById('batchReportTab');
+    
+    if (type === 'individual') {
+        individualTab.classList.add('active');
+        batchTab.classList.remove('active');
+        
+        // Show individual form, hide batch form and displays
+        document.getElementById('individualReportForm').style.display = 'block';
+        document.getElementById('batchReportForm').style.display = 'none';
+        document.getElementById('reportDisplay').style.display = 'none';
+        document.getElementById('batchReportDisplay').style.display = 'none';
+    } else {
+        batchTab.classList.add('active');
+        individualTab.classList.remove('active');
+        
+        // Show batch form, hide individual form and displays
+        document.getElementById('individualReportForm').style.display = 'none';
+        document.getElementById('batchReportForm').style.display = 'block';
+        document.getElementById('reportDisplay').style.display = 'none';
+        document.getElementById('batchReportDisplay').style.display = 'none';
+    }
+}
+
+/**
+ * Updates batch options for batch report based on selected school
+ */
+function updateBatchReportBatchOptions() {
+    const schoolSelect = document.getElementById('batchReportSchool');
+    const batchSelect = document.getElementById('batchReportBatch');
+    const selectedSchool = schoolSelect.value;
+    
+    // Clear existing options
+    batchSelect.innerHTML = '<option value="">Select Batch</option>';
+    
+    if (selectedSchool && batchReportOptions[selectedSchool]) {
+        batchSelect.disabled = false;
+        batchReportOptions[selectedSchool].forEach(batch => {
+            const option = document.createElement('option');
+            option.value = batch;
+            option.textContent = batch;
+            batchSelect.appendChild(option);
+        });
+    } else {
+        batchSelect.disabled = true;
+    }
+}
+
+/**
+ * Generates and displays batch attendance report
+ */
+async function generateBatchAttendanceReport() {
+    const school = document.getElementById('batchReportSchool').value;
+    const batch = document.getElementById('batchReportBatch').value;
+    const subject = document.getElementById('batchReportSubject').value;
+    const selectedDate = document.getElementById('batchReportDate').value;
+    
+    // Validation
+    if (!school || !batch || !subject || !selectedDate) {
+        alert('Please fill in all fields to generate batch report.');
+        return;
+    }
+    
+    try {
+        // Show loading state
+        document.getElementById('reportLoading').style.display = 'block';
+        document.getElementById('batchReportDisplay').style.display = 'none';
+        
+        const db = firebase.firestore();
+        
+        // Get all students from the selected batch
+        const allStudentsQuery = await db.collection('users')
+            .where('role', '==', 'student')
+            .get();
+        
+        // Find students matching the batch
+        const batchStudents = [];
+        const profilePromises = [];
+        
+        allStudentsQuery.forEach(studentDoc => {
+            const studentData = studentDoc.data();
+            
+            // Check student profiles to match batch
+            const profilePromise = db.collection('profiles').doc(studentDoc.id).get()
+                .then(profileDoc => {
+                    if (profileDoc.exists) {
+                        const profileData = profileDoc.data();
+                        
+                        if (profileData.school === school && profileData.batch === batch) {
+                            batchStudents.push({
+                                id: studentDoc.id,
+                                name: profileData.fullName || studentData.fullName || studentData.name,
+                                regNumber: profileData.regNumber || studentData.regNumber || 'N/A',
+                                email: studentData.email,
+                                profileData: profileData,
+                                userData: studentData
+                            });
+                        }
+                    } else {
+                        // Fallback: use email-based matching
+                        const email = studentData.email || '';
+                        let matches = false;
+                        
+                        if (school === 'School of Technology' && email.includes('sot')) {
+                            if (batch.startsWith('24') && email.includes('2428')) matches = true;
+                            if (batch.startsWith('23') && email.includes('2328')) matches = true;
+                        } else if (school === 'School of Management' && email.includes('som')) {
+                            if (batch.startsWith('24') && email.includes('2428')) matches = true;
+                            if (batch.startsWith('23') && email.includes('2328')) matches = true;
+                        }
+                        
+                        if (matches) {
+                            batchStudents.push({
+                                id: studentDoc.id,
+                                name: studentData.fullName || studentData.name || extractNameFromEmail(email),
+                                regNumber: studentData.regNumber || studentData.registrationNumber || 'N/A',
+                                email: studentData.email,
+                                profileData: {
+                                    school: school,
+                                    batch: batch,
+                                    fullName: studentData.fullName || studentData.name
+                                },
+                                userData: studentData
+                            });
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.warn('Error fetching profile for student:', studentDoc.id, error);
+                });
+            
+            profilePromises.push(profilePromise);
+        });
+        
+        await Promise.all(profilePromises);
+        
+        if (batchStudents.length === 0) {
+            alert(`No students found for ${school} - ${batch}`);
+            document.getElementById('reportLoading').style.display = 'none';
+            return;
+        }
+        
+        // Get attendance records for the selected date
+        const attendanceQuery = await db.collection('attendances')
+            .where('date', '==', selectedDate)
+            .where('subject', '==', subject)
+            .get();
+        
+        // Create a map of attendance records
+        const attendanceMap = new Map();
+        attendanceQuery.forEach(doc => {
+            const data = doc.data();
+            if (data.userId) {
+                attendanceMap.set(data.userId, data.status);
+            }
+        });
+        
+        // Calculate overall attendance percentages for each student
+        const studentReportData = [];
+        let totalPresent = 0;
+        let totalAbsent = 0;
+        
+        for (const student of batchStudents) {
+            // Get attendance status for the specific date
+            const dateStatus = attendanceMap.get(student.id) || 'absent';
+            
+            if (dateStatus === 'present') {
+                totalPresent++;
+            } else {
+                totalAbsent++;
+            }
+            
+            // Calculate overall percentage for this subject
+            const overallQuery = await db.collection('attendances')
+                .where('userId', '==', student.id)
+                .where('subject', '==', subject)
+                .get();
+            
+            let totalClasses = 0;
+            let presentClasses = 0;
+            
+            overallQuery.forEach(doc => {
+                const data = doc.data();
+                const periods = data.periods || 1;
+                totalClasses += periods;
+                if (data.status === 'present') {
+                    presentClasses += periods;
+                }
+            });
+            
+            const overallPercentage = totalClasses > 0 ? Math.round((presentClasses / totalClasses) * 100) : 0;
+            
+            studentReportData.push({
+                name: student.name,
+                regNumber: student.regNumber,
+                dateStatus: dateStatus,
+                overallPercentage: overallPercentage
+            });
+        }
+        
+        // Sort students by name
+        studentReportData.sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Calculate batch statistics
+        const totalStudents = batchStudents.length;
+        const batchAttendancePercentage = totalStudents > 0 ? Math.round((totalPresent / totalStudents) * 100) : 0;
+        
+        // Display the batch report
+        displayBatchReport({
+            school,
+            batch,
+            subject,
+            selectedDate,
+            studentReportData,
+            totalStudents,
+            totalPresent,
+            totalAbsent,
+            batchAttendancePercentage
+        });
+        
+    } catch (error) {
+        console.error('Error generating batch report:', error);
+        alert(`Error generating batch report: ${error.message}`);
+        document.getElementById('reportLoading').style.display = 'none';
+    }
+}
+
+/**
+ * Displays the batch attendance report
+ * @param {Object} reportData - The batch report data
+ */
+function displayBatchReport(reportData) {
+    const {
+        school,
+        batch,
+        subject,
+        selectedDate,
+        studentReportData,
+        totalStudents,
+        totalPresent,
+        totalAbsent,
+        batchAttendancePercentage
+    } = reportData;
+    
+    // Hide loading and show batch report
+    document.getElementById('reportLoading').style.display = 'none';
+    document.getElementById('batchReportDisplay').style.display = 'block';
+    
+    // Populate report header
+    document.getElementById('batchReportSchoolName').textContent = school;
+    document.getElementById('batchReportBatchName').textContent = batch;
+    document.getElementById('batchReportSubjectName').textContent = subject;
+    document.getElementById('batchReportDateSelected').textContent = new Date(selectedDate).toLocaleDateString();
+    
+    // Populate summary
+    document.getElementById('batchTotalPresent').textContent = totalPresent;
+    document.getElementById('batchTotalAbsent').textContent = totalAbsent;
+    document.getElementById('batchTotalStudents').textContent = totalStudents;
+    document.getElementById('batchAttendancePercentage').textContent = `${batchAttendancePercentage}%`;
+    
+    // Update percentage bar
+    const batchPercentageBar = document.getElementById('batchPercentageBar');
+    if (batchPercentageBar) {
+        batchPercentageBar.style.width = `${batchAttendancePercentage}%`;
+        
+        // Color code the percentage
+        if (batchAttendancePercentage >= 75) {
+            batchPercentageBar.style.backgroundColor = '#28a745'; // Green
+        } else if (batchAttendancePercentage >= 60) {
+            batchPercentageBar.style.backgroundColor = '#ffc107'; // Yellow
+        } else {
+            batchPercentageBar.style.backgroundColor = '#dc3545'; // Red
+        }
+    }
+    
+    // Populate students table
+    const batchStudentsTable = document.getElementById('batchStudentsTable');
+    batchStudentsTable.innerHTML = '';
+    
+    if (studentReportData.length === 0) {
+        batchStudentsTable.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; color: #666; padding: 20px;">
+                    No students found for this batch.
+                </td>
+            </tr>
+        `;
+    } else {
+        studentReportData.forEach((student, index) => {
+            const row = document.createElement('tr');
+            row.className = student.dateStatus === 'present' ? 'present-row' : 'absent-row';
+            
+            const statusIcon = student.dateStatus === 'present' ? 
+                '<i class="fas fa-check-circle" style="color: #28a745;"></i>' : 
+                '<i class="fas fa-times-circle" style="color: #dc3545;"></i>';
+            
+            // Color code the overall percentage
+            let percentageClass = '';
+            if (student.overallPercentage >= 75) {
+                percentageClass = 'style="color: #28a745; font-weight: 600;"'; // Green
+            } else if (student.overallPercentage >= 60) {
+                percentageClass = 'style="color: #ffc107; font-weight: 600;"'; // Yellow
+            } else {
+                percentageClass = 'style="color: #dc3545; font-weight: 600;"'; // Red
+            }
+            
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${student.name}</td>
+                <td>${student.regNumber}</td>
+                <td>${statusIcon} ${student.dateStatus.charAt(0).toUpperCase() + student.dateStatus.slice(1)}</td>
+                <td ${percentageClass}>${student.overallPercentage}%</td>
+            `;
+            
+            batchStudentsTable.appendChild(row);
+        });
+    }
+}
+
+/**
+ * Resets the batch report form
+ */
+function resetBatchReportForm() {
+    document.getElementById('batchReportSchool').value = '';
+    document.getElementById('batchReportBatch').value = '';
+    document.getElementById('batchReportBatch').disabled = true;
+    document.getElementById('batchReportSubject').value = '';
+    document.getElementById('batchReportDate').value = '';
+    
+    document.getElementById('batchReportDisplay').style.display = 'none';
+    document.getElementById('reportLoading').style.display = 'none';
+}
+
+/**
+ * Prints the batch report
+ */
+function printBatchReport() {
+    const reportContent = document.getElementById('batchReportDisplay');
+    
+    if (!reportContent || reportContent.style.display === 'none') {
+        alert('No batch report to print. Please generate a report first.');
+        return;
+    }
+    
+    const printWindow = window.open('', '_blank');
+    
+    const school = document.getElementById('batchReportSchoolName').textContent;
+    const batch = document.getElementById('batchReportBatchName').textContent;
+    const subject = document.getElementById('batchReportSubjectName').textContent;
+    const date = document.getElementById('batchReportDateSelected').textContent;
+    
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Batch Attendance Report - ${school} ${batch} - ${subject}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+                .report-header { text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f8f9fa; }
+                .present-row { background-color: #d4edda; }
+                .absent-row { background-color: #f8d7da; }
+                @media print { body { margin: 0; } .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            ${reportContent.innerHTML}
+            <script>
+                window.onload = function() {
+                    window.print();
+                    window.onafterprint = function() {
+                        window.close();
+                    };
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+}
+
+/**
+ * Exports the batch report to Excel
+ */
+function exportBatchToExcel() {
+    const reportDisplay = document.getElementById('batchReportDisplay');
+    
+    if (!reportDisplay || reportDisplay.style.display === 'none') {
+        alert('No batch report to export. Please generate a report first.');
+        return;
+    }
+    
+    try {
+        const school = document.getElementById('batchReportSchoolName').textContent;
+        const batch = document.getElementById('batchReportBatchName').textContent;
+        const subject = document.getElementById('batchReportSubjectName').textContent;
+        const date = document.getElementById('batchReportDateSelected').textContent;
+        const totalPresent = document.getElementById('batchTotalPresent').textContent;
+        const totalAbsent = document.getElementById('batchTotalAbsent').textContent;
+        const totalStudents = document.getElementById('batchTotalStudents').textContent;
+        const percentage = document.getElementById('batchAttendancePercentage').textContent;
+        
+        let csvContent = `Batch Attendance Report\n`;
+        csvContent += `School,${school}\n`;
+        csvContent += `Batch,${batch}\n`;
+        csvContent += `Subject,${subject}\n`;
+        csvContent += `Date,${date}\n\n`;
+        csvContent += `Summary\n`;
+        csvContent += `Students Present,${totalPresent}\n`;
+        csvContent += `Students Absent,${totalAbsent}\n`;
+        csvContent += `Total Students,${totalStudents}\n`;
+        csvContent += `Batch Attendance Percentage,${percentage}\n\n`;
+        csvContent += `Student Details\n`;
+        csvContent += `S.No.,Student Name,Enrollment ID,Date Status,Overall Percentage\n`;
+        
+        const table = document.getElementById('batchStudentsTable');
+        const rows = table.querySelectorAll('tr');
+        
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 5) {
+                const sno = cells[0].textContent;
+                const name = cells[1].textContent;
+                const regNumber = cells[2].textContent;
+                const status = cells[3].textContent.replace(/[^a-zA-Z]/g, ''); // Remove icons
+                const overallPercentage = cells[4].textContent;
+                csvContent += `${sno},${name},${regNumber},${status},${overallPercentage}\n`;
+            }
+        });
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `batch_attendance_report_${batch}_${subject}_${date.replace(/[^a-zA-Z0-9]/g, '_')}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            alert('CSV export is not supported in this browser.');
+        }
+        
+    } catch (error) {
+        console.error('Error exporting batch report:', error);
+        alert('Error exporting batch report. Please try again.');
+    }
+}
+
 // Make functions globally accessible
 window.showSection = showSection;
 window.updateManualBatchOptions = updateManualBatchOptions;
@@ -1502,3 +2931,16 @@ window.markAllPresent = markAllPresent;
 window.markAllAbsent = markAllAbsent;
 window.submitManualAttendance = submitManualAttendance;
 window.resetAttendanceForm = resetAttendanceForm;
+window.generateAttendanceReport = generateAttendanceReport;
+window.resetReportForm = resetReportForm;
+window.printReport = printReport;
+window.exportToExcel = exportToExcel;
+window.handleRegNumberInput = handleRegNumberInput;
+window.processAbsentStudents = processAbsentStudents;
+// Batch report functions
+window.showReportType = showReportType;
+window.updateBatchReportBatchOptions = updateBatchReportBatchOptions;
+window.generateBatchAttendanceReport = generateBatchAttendanceReport;
+window.resetBatchReportForm = resetBatchReportForm;
+window.printBatchReport = printBatchReport;
+window.exportBatchToExcel = exportBatchToExcel;

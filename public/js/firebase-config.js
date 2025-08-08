@@ -42,7 +42,6 @@ const FirebaseUtils = {
       await auth.signOut();
       window.location.href = 'index.html';
     } catch (error) {
-      console.error('Logout error:', error);
       localStorage.clear();
       sessionStorage.clear();
       window.location.href = 'index.html';

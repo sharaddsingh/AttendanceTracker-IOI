@@ -620,6 +620,15 @@ label {
     body {
         padding: 20px 40px;
     }
+    
+    /* Enhanced QR Modal for large screens */
+    .qr-modal-content {
+        max-width: 700px;
+    }
+    
+    .profile-content {
+        max-width: 600px;
+    }
 }
 
 /* Large Desktop (1200px to 1439px) */
@@ -684,6 +693,30 @@ label {
     .action-btn span {
         font-size: 0.85rem;
     }
+    
+    /* Enhanced form responsiveness */
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    /* Better modal sizing */
+    .qr-modal-content,
+    .profile-content {
+        width: 95%;
+        max-width: none;
+    }
+    
+    /* Improved table scrolling */
+    .table-container {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .attendance-table th,
+    .attendance-table td {
+        white-space: nowrap;
+        min-width: 100px;
+    }
 }
 
 /* Tablet Portrait (576px to 767px) */
@@ -706,9 +739,10 @@ label {
     }
     
     .header h1 {
-        font-size: 2rem;
+        font-size: 1.8rem;
         text-align: left;
         margin-bottom: 0;
+        word-break: break-word;
     }
     
     .header .header-controls {
@@ -719,6 +753,8 @@ label {
     .theme-toggle {
         padding: 10px 16px;
         font-size: 0.9rem;
+        width: auto;
+        min-width: 120px;
     }
     
     .dashboard {
@@ -728,6 +764,7 @@ label {
     
     .section {
         padding: 15px;
+        margin-bottom: 10px;
     }
     
     .quick-actions-grid {
@@ -737,10 +774,25 @@ label {
     
     .action-btn {
         padding: 15px 10px;
+        min-height: 80px;
+        justify-content: center;
     }
     
     .action-btn span {
         font-size: 0.8rem;
+        text-align: center;
+    }
+    
+    /* Enhanced form elements */
+    .form-group select,
+    .form-group input {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 12px;
+    }
+    
+    /* Better button sizing */
+    button {
+        min-height: 44px; /* Touch-friendly */
     }
     
     /* Faculty welcome message - tablet */
@@ -872,6 +924,7 @@ label {
 @media screen and (max-width: 480px) {
     body {
         padding: 8px;
+        min-width: 320px; /* Prevent horizontal scroll */
     }
     
     .header {
@@ -880,41 +933,87 @@ label {
     }
     
     .header h1 {
-        font-size: 1.1rem;
+        font-size: 1.4rem;
+        line-height: 1.2;
+        word-break: break-word;
     }
     
     .theme-toggle {
-        padding: 6px 12px;
-        font-size: 0.8rem;
+        padding: 8px 16px;
+        font-size: 0.85rem;
+        width: 100%;
+        max-width: 150px;
     }
     
     .section {
-        padding: 10px;
+        padding: 12px;
+        border-radius: 8px;
     }
     
     h2 {
-        font-size: 1rem;
+        font-size: 1.1rem;
+        margin-bottom: 12px;
     }
     
     .quick-actions-grid {
         grid-template-columns: 1fr;
-        gap: 8px;
+        gap: 10px;
     }
     
     .action-btn {
-        padding: 15px;
+        padding: 16px;
         flex-direction: row;
         justify-content: flex-start;
-        gap: 12px;
+        gap: 15px;
         text-align: left;
+        min-height: 60px;
+        border-radius: 8px;
     }
     
     .action-btn i {
-        font-size: 1.1rem;
+        font-size: 1.3rem;
+        flex-shrink: 0;
     }
     
     .action-btn span {
+        font-size: 0.95rem;
+        font-weight: 500;
+    }
+    
+    /* Enhanced mobile forms */
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
         font-size: 0.9rem;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    
+    .form-group select,
+    .form-group input {
+        padding: 12px;
+        font-size: 16px;
+        border-radius: 6px;
+        border: 2px solid #ddd;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .form-group select:focus,
+    .form-group input:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+    
+    /* Better modal experience */
+    .qr-modal-content,
+    .profile-content {
+        width: calc(100vw - 16px);
+        margin: 8px;
+        border-radius: 12px;
+        max-height: calc(100vh - 40px);
     }
     
     /* Leave request items - stack everything */
@@ -1166,15 +1265,38 @@ label {
     .approve-btn,
     .reject-btn,
     .generate-btn,
-    .theme-toggle {
-        min-height: 44px; /* iOS recommended touch target size */
+    .theme-toggle,
+    .load-students-btn,
+    .reset-btn,
+    .submit-attendance-btn,
+    .cancel-btn,
+    .generate-report-btn {
+        min-height: 48px; /* iOS recommended touch target size */
         touch-action: manipulation; /* Eliminates delay on touch */
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
     }
     
     .action-btn:active,
     .approve-btn:active,
-    .reject-btn:active {
-        transform: scale(0.95);
+    .reject-btn:active,
+    .generate-btn:active {
+        transform: scale(0.96);
+        transition: transform 0.1s ease;
+    }
+    
+    /* Better touch targets for form elements */
+    select, input[type="text"], input[type="date"], input[type="time"], input[type="number"] {
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+    
+    /* Improved checkbox touch targets */
+    .attendance-checkbox,
+    .subject-checkbox-item input[type="checkbox"],
+    .department-checkbox-item input[type="checkbox"] {
+        min-width: 20px;
+        min-height: 20px;
+        transform: scale(1.3);
     }
 }
 
@@ -1543,47 +1665,956 @@ label {
 @media screen and (max-width: 480px) {
     .attendance-form {
         padding: 15px;
+        border-radius: 8px;
     }
     
     .form-actions {
         flex-direction: column;
+        gap: 12px;
     }
     
     .students-list {
         padding: 15px;
-        gap: 10px;
+        gap: 12px;
+        grid-template-columns: 1fr;
     }
     
     .student-card {
-        padding: 12px;
+        padding: 15px;
+        border-radius: 8px;
+        min-height: 60px;
     }
     
-    /* Ultra mobile-optimized dropdowns */
+    .student-card .student-info h4 {
+        font-size: 0.95rem;
+        margin-bottom: 6px;
+    }
+    
+    .student-card .student-info p {
+        font-size: 0.85rem;
+    }
+    
+    /* Enhanced mobile-optimized dropdowns */
     .attendance-form .form-group select {
-        padding: 8px 28px 8px 10px;
-        font-size: 13px;
+        padding: 12px 32px 12px 12px;
+        font-size: 16px; /* Prevent zoom */
         line-height: 1.4;
-        border-radius: 4px;
-        background-size: 10px;
-        background-position: right 6px center;
+        border-radius: 6px;
+        border: 2px solid #ddd;
+        background-size: 12px;
+        background-position: right 10px center;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+    }
+    
+    .attendance-form .form-group select:focus {
+        border-color: var(--primary-color);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
     }
     
     .attendance-form .form-group label {
-        font-size: 0.8rem;
-        margin-bottom: 4px;
-        font-weight: 700;
-        color: var(--primary-color);
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-color);
     }
     
     .form-group {
-        margin-bottom: 12px;
+        margin-bottom: 16px;
     }
     
     .load-students-btn,
     .reset-btn {
-        padding: 10px 14px;
+        padding: 14px 16px;
+        font-size: 0.9rem;
+        min-height: 48px;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    
+    /* Better bulk action buttons */
+    .bulk-actions {
+        padding: 12px 15px;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .bulk-present-btn,
+    .bulk-absent-btn {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+        min-height: 44px;
+        border-radius: 6px;
+    }
+    
+    /* Improved submission actions */
+    .submission-actions {
+        padding: 15px;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .submit-attendance-btn,
+    .cancel-btn {
+        padding: 14px 20px;
+        font-size: 1rem;
+        min-height: 48px;
+        border-radius: 8px;
+    }
+}
+
+/* ===== REPORTS SECTION STYLES ===== */
+/* Report Display */
+.report-display {
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.report-header .report-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Percentage Bar */
+.percentage-bar-container {
+    width: 100%;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.percentage-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    background: var(--success-color);
+}
+
+/* Attendance Records Table */
+.attendance-records {
+    padding: 20px;
+}
+
+.attendance-records h4 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.table-container {
+    overflow-x: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+}
+
+.attendance-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+.attendance-table th,
+.attendance-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.attendance-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: var(--text-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.attendance-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.attendance-table .present-row {
+    background: rgba(40, 167, 69, 0.05);
+}
+
+.attendance-table .absent-row {
+    background: rgba(220, 53, 69, 0.05);
+}
+
+.attendance-table .present-row:hover {
+    background: rgba(40, 167, 69, 0.1);
+}
+
+.attendance-table .absent-row:hover {
+    background: rgba(220, 53, 69, 0.1);
+}
+.report-form {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+.generate-report-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.generate-report-btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+}
+
+/* Report Results */
+.report-results {
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.report-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+.report-header h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.report-info {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 10px 15px;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    display: inline-block;
+}
+
+/* Summary Cards */
+.report-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.summary-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.summary-card.present {
+    border-left: 4px solid var(--success-color);
+}
+
+.summary-card.absent {
+    border-left: 4px solid var(--danger-color);
+}
+
+.summary-card.percentage {
+    border-left: 4px solid #17a2b8;
+}
+
+.summary-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.summary-card.present .summary-icon {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+.summary-card.absent .summary-icon {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+}
+
+.summary-card.percentage .summary-icon {
+    background: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+}
+
+.summary-content h4 {
+    margin: 0 0 5px 0;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.summary-content p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Attendance Details */
+.attendance-details {
+    padding: 20px;
+}
+
+.attendance-details h4 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attendance-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+}
+
+.attendance-record {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #e9ecef;
+    background: white;
+    transition: background 0.2s ease;
+}
+
+.attendance-record:last-child {
+    border-bottom: none;
+}
+
+.attendance-record:hover {
+    background: #f8f9fa;
+}
+
+.attendance-date {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.attendance-status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.attendance-status.present {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+.attendance-status.absent {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+}
+
+/* Report Actions */
+.report-actions {
+    padding: 20px;
+    background: #f8f9fa;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.print-btn, .export-btn, .back-btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+
+.print-btn {
+    background: #6c757d;
+    color: white;
+}
+
+.print-btn:hover {
+    background: #545b62;
+    transform: translateY(-1px);
+}
+
+.export-btn {
+    background: var(--success-color);
+    color: white;
+}
+
+.export-btn:hover {
+    background: var(--success-hover);
+    transform: translateY(-1px);
+}
+
+.back-btn {
+    background: var(--primary-color);
+    color: white;
+}
+
+.back-btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+/* Reports Responsive Design */
+@media screen and (max-width: 768px) {
+    .report-summary {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .summary-card {
+        padding: 15px;
+    }
+    
+    .summary-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+    }
+    
+    .summary-content h4 {
+        font-size: 1.5rem;
+    }
+    
+    .report-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .report-form .form-row {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .generate-report-btn,
+    .reset-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .report-header {
+        padding: 15px;
+    }
+    
+    .report-header h3 {
+        font-size: 1.2rem;
+    }
+    
+    .report-info {
+        font-size: 0.85rem;
+        padding: 8px 12px;
+    }
+    
+    .summary-card {
+        padding: 12px;
+        gap: 10px;
+    }
+    
+    .summary-content h4 {
+        font-size: 1.3rem;
+    }
+    
+    .attendance-details {
+        padding: 15px;
+    }
+    
+    .attendance-record {
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .report-actions {
+        padding: 15px;
+    }
+    
+    .print-btn, .export-btn, .back-btn {
+        padding: 12px;
+        justify-content: center;
+    }
+}
+
+/* ===== ADDITIONAL RESPONSIVE ENHANCEMENTS ===== */
+
+/* Report Type Tabs Responsiveness */
+.report-type-selection {
+    margin-bottom: 20px;
+}
+
+.report-type-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--primary-color);
+    background: transparent;
+    color: var(--primary-color);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.tab-btn.active,
+.tab-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+@media screen and (max-width: 768px) {
+    .report-type-tabs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .tab-btn {
+        padding: 14px;
+        font-size: 0.85rem;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .tab-btn {
+        padding: 12px;
+        font-size: 0.8rem;
+        min-height: 44px;
+    }
+    
+    .tab-btn i {
+        font-size: 1rem;
+    }
+}
+
+/* Batch Report Display Responsive */
+.batch-report-display {
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.batch-report-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+.batch-report-header h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.batch-report-info {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.batch-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.summary-card.total {
+    border-left: 4px solid #6c757d;
+}
+
+.summary-card.total .summary-icon {
+    background: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+}
+
+.batch-students-list {
+    padding: 20px;
+}
+
+.batch-students-list h4 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.batch-attendance-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+.batch-attendance-table th,
+.batch-attendance-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 0.9rem;
+}
+
+.batch-attendance-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: var(--text-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.batch-attendance-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.batch-report-actions {
+    padding: 20px;
+    background: #f8f9fa;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+@media screen and (max-width: 768px) {
+    .batch-summary {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 15px;
+    }
+    
+    .batch-report-header {
+        padding: 15px;
+    }
+    
+    .batch-report-header h3 {
+        font-size: 1.2rem;
+    }
+    
+    .batch-students-list {
+        padding: 15px;
+    }
+    
+    .batch-attendance-table th,
+    .batch-attendance-table td {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .batch-report-actions {
+        flex-direction: column;
+        padding: 15px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .batch-summary {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 12px;
+    }
+    
+    .batch-report-header {
+        padding: 12px;
+    }
+    
+    .batch-report-header h3 {
+        font-size: 1.1rem;
+    }
+    
+    .batch-students-list {
+        padding: 12px;
+    }
+    
+    .table-container {
+        font-size: 0.75rem;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .batch-attendance-table th,
+    .batch-attendance-table td {
+        padding: 6px 8px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        min-width: 80px;
+    }
+    
+    .batch-report-actions {
+        padding: 12px;
+        gap: 10px;
+    }
+}
+
+/* Enhanced Faculty Welcome Message Responsiveness */
+@media screen and (max-width: 360px) {
+    .faculty-welcome {
+        padding: 12px;
+        margin-bottom: 12px;
+        border-radius: 6px;
+    }
+    
+    .faculty-welcome h4 {
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        line-height: 1.3;
+    }
+    
+    .faculty-welcome h4 i {
+        font-size: 1.1rem;
+    }
+    
+    .faculty-welcome p {
+        font-size: 0.8rem;
+        line-height: 1.3;
+        font-weight: 600;
+    }
+}
+
+/* Ultra Small Mobile Devices (< 360px) */
+@media screen and (max-width: 359px) {
+    body {
+        padding: 6px;
+        min-width: 320px;
+    }
+    
+    .header h1 {
+        font-size: 1.2rem;
+        line-height: 1.2;
+    }
+    
+    .section {
+        padding: 10px;
+        margin-bottom: 8px;
+        border-radius: 6px;
+    }
+    
+    h2 {
+        font-size: 1rem;
+        margin-bottom: 10px;
+    }
+    
+    .action-btn {
+        padding: 14px 12px;
+        min-height: 56px;
+        font-size: 0.85rem;
+    }
+    
+    .action-btn i {
+        font-size: 1.2rem;
+    }
+    
+    .form-group select,
+    .form-group input {
+        padding: 10px;
+        font-size: 16px;
+        border-radius: 4px;
+    }
+    
+    .generate-btn,
+    .load-students-btn,
+    .reset-btn,
+    .submit-attendance-btn,
+    .cancel-btn {
+        padding: 12px 14px;
         font-size: 0.85rem;
         min-height: 44px;
+        border-radius: 6px;
+    }
+    
+    /* Ultra compact modals */
+    .qr-modal-content,
+    .profile-content {
+        width: calc(100vw - 12px);
+        margin: 6px;
+        border-radius: 8px;
+    }
+    
+    .qr-form,
+    .qr-display {
+        padding: 10px;
+    }
+    
+    .profile-content {
+        padding: 12px;
+    }
+}
+
+/* Landscape Orientation Adjustments */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+    body {
+        padding: 5px;
+    }
+    
+    .header {
+        padding: 10px 0;
+        margin-bottom: 10px;
+    }
+    
+    .header h1 {
+        font-size: 1.2rem;
+    }
+    
+    .section {
+        padding: 12px;
+        margin-bottom: 8px;
+    }
+    
+    .quick-actions-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    
+    .action-btn {
+        padding: 10px;
+        min-height: 50px;
+    }
+    
+    /* Compact modals for landscape */
+    .qr-modal-content {
+        max-height: 90vh;
+        margin: 2vh auto;
+    }
+    
+    .profile-content {
+        max-height: 90vh;
+        margin: 2vh auto;
+    }
+    
+    .students-list {
+        max-height: 200px;
+    }
+}
+
+/* Better Focus States for Accessibility */
+@media (prefers-reduced-motion: no-preference) {
+    button:focus,
+    select:focus,
+    input:focus {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        transition: outline-offset 0.2s ease;
+    }
+    
+    .action-btn:focus {
+        outline-color: white;
+        outline-offset: 4px;
+    }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .section {
+        border: 2px solid var(--text-color);
+    }
+    
+    .action-btn {
+        border: 2px solid currentColor;
+    }
+    
+    .student-card {
+        border-width: 3px;
+    }
+    
+    .summary-card {
+        border-left-width: 6px;
     }
 }
 
@@ -1592,7 +2623,9 @@ label {
     .theme-toggle,
     .action-btn,
     .approve-btn,
-    .reject-btn {
+    .reject-btn,
+    .report-actions,
+    .batch-report-actions {
         display: none;
     }
     
@@ -1604,5 +2637,37 @@ label {
         break-inside: avoid;
         box-shadow: none;
         border: 1px solid #000;
+        margin-bottom: 20px;
+    }
+    
+    .report-results,
+    .report-display,
+    .batch-report-display {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+    
+    .report-header,
+    .batch-report-header {
+        background: #f8f9fa !important;
+        color: #000 !important;
+    }
+    
+    .summary-card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+    
+    .attendance-table,
+    .batch-attendance-table {
+        border: 1px solid #000;
+    }
+    
+    .attendance-table th,
+    .attendance-table td,
+    .batch-attendance-table th,
+    .batch-attendance-table td {
+        border: 1px solid #000;
+        padding: 8px;
     }
 }

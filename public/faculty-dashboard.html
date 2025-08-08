@@ -199,10 +199,6 @@
                     <i class="fas fa-chart-bar"></i>
                     <span>View Reports</span>
                 </button>
-                <button class="action-btn manage-students" onclick="showSection('studentManagementSection')">
-                    <i class="fas fa-users"></i>
-                    <span>Students</span>
-                </button>
             </div>
         </div>
 
@@ -341,7 +337,277 @@
         <!-- Reports Section -->
         <div class="section" id="reportsSection" style="display: none;">
             <h2><i class="fas fa-chart-bar"></i> Attendance Reports</h2>
-            <p style="color: #666; text-align: center; margin: 40px 0;">Reports functionality will be implemented here.</p>
+            
+            <!-- Report Type Selection -->
+            <div class="report-type-selection">
+                <div class="report-type-tabs">
+                    <button id="individualReportTab" class="tab-btn active" onclick="showReportType('individual')">
+                        <i class="fas fa-user"></i> Individual Student Report
+                    </button>
+                    <button id="batchReportTab" class="tab-btn" onclick="showReportType('batch')">
+                        <i class="fas fa-users"></i> Batch Attendance Report
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Individual Student Report Form -->
+            <div id="individualReportForm" class="report-form" style="display: block;">
+                <h3><i class="fas fa-user"></i> Individual Student Report</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="studentRegNumber">Student Registration Number (Enrollment ID) *</label>
+                        <input type="text" id="studentRegNumber" required 
+                               placeholder="Enter student registration number" 
+                               style="text-transform: uppercase;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reportSubject">Subject *</label>
+                        <select id="reportSubject" required>
+                            <option value="">Select Subject</option>
+                            <!-- Will be populated from faculty profile -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button onclick="generateAttendanceReport()" class="generate-report-btn">
+                        <i class="fas fa-search"></i> View Attendance Report
+                    </button>
+                    <button onclick="resetReportForm()" class="reset-btn">
+                        <i class="fas fa-refresh"></i> Reset
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Batch Attendance Report Form -->
+            <div id="batchReportForm" class="report-form" style="display: none;">
+                <h3><i class="fas fa-users"></i> Batch Attendance Report</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="batchReportSchool">School *</label>
+                        <select id="batchReportSchool" onchange="updateBatchReportBatchOptions()" required>
+                            <option value="">Select School</option>
+                            <option value="School of Technology">School of Technology</option>
+                            <option value="School of Management">School of Management</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="batchReportBatch">Batch *</label>
+                        <select id="batchReportBatch" required disabled>
+                            <option value="">Select Batch</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="batchReportSubject">Subject *</label>
+                        <select id="batchReportSubject" required>
+                            <option value="">Select Subject</option>
+                            <!-- Will be populated from faculty profile -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="batchReportDate">Date *</label>
+                        <input type="date" id="batchReportDate" required>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button onclick="generateBatchAttendanceReport()" class="generate-report-btn">
+                        <i class="fas fa-search"></i> View Batch Report
+                    </button>
+                    <button onclick="resetBatchReportForm()" class="reset-btn">
+                        <i class="fas fa-refresh"></i> Reset
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Report Display -->
+            <div id="reportDisplay" class="report-display" style="display: none;">
+                <div class="report-header">
+                    <h3>Attendance Report</h3>
+                    <div class="report-info">
+                        <div class="info-row">
+                            <span><strong>Student:</strong> <span id="reportStudentName">-</span></span>
+                            <span><strong>Registration:</strong> <span id="reportStudentReg">-</span></span>
+                        </div>
+                        <div class="info-row">
+                            <span><strong>Subject:</strong> <span id="reportSubject">-</span></span>
+                            <span><strong>Generated:</strong> <span id="reportGeneratedDate">-</span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-summary">
+                    <div class="summary-card present">
+                        <div class="summary-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="totalClassesAttended">0</h4>
+                            <p>Classes Attended</p>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card absent">
+                        <div class="summary-icon">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="totalClassesMissed">0</h4>
+                            <p>Classes Missed</p>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card percentage">
+                        <div class="summary-icon">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="attendancePercentage">0%</h4>
+                            <div class="percentage-bar-container">
+                                <div id="percentageBar" class="percentage-bar" style="width: 0%; background-color: #28a745;"></div>
+                            </div>
+                            <p>Attendance Rate</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="attendance-records">
+                    <h4><i class="fas fa-calendar-alt"></i> Attendance Records</h4>
+                    <div class="table-container">
+                        <table class="attendance-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th>Periods</th>
+                                    <th>Faculty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceRecordsTable">
+                                <!-- Records will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="report-actions">
+                    <button onclick="printReport()" class="print-btn">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                    <button onclick="exportToExcel()" class="export-btn">
+                        <i class="fas fa-download"></i> Export to Excel
+                    </button>
+                    <button onclick="resetReportForm()" class="back-btn">
+                        <i class="fas fa-arrow-left"></i> New Search
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Batch Report Display -->
+            <div id="batchReportDisplay" class="batch-report-display" style="display: none;">
+                <div class="batch-report-header">
+                    <h3>Batch Attendance Report</h3>
+                    <div class="batch-report-info">
+                        <div class="info-row">
+                            <span><strong>School:</strong> <span id="batchReportSchoolName">-</span></span>
+                            <span><strong>Batch:</strong> <span id="batchReportBatchName">-</span></span>
+                        </div>
+                        <div class="info-row">
+                            <span><strong>Subject:</strong> <span id="batchReportSubjectName">-</span></span>
+                            <span><strong>Date:</strong> <span id="batchReportDateSelected">-</span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="batch-summary">
+                    <div class="summary-card present">
+                        <div class="summary-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="batchTotalPresent">0</h4>
+                            <p>Students Present</p>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card absent">
+                        <div class="summary-icon">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="batchTotalAbsent">0</h4>
+                            <p>Students Absent</p>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card total">
+                        <div class="summary-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="batchTotalStudents">0</h4>
+                            <p>Total Students</p>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card percentage">
+                        <div class="summary-icon">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4 id="batchAttendancePercentage">0%</h4>
+                            <div class="percentage-bar-container">
+                                <div id="batchPercentageBar" class="percentage-bar" style="width: 0%; background-color: #28a745;"></div>
+                            </div>
+                            <p>Batch Attendance</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="batch-students-list">
+                    <h4><i class="fas fa-list"></i> Student Attendance Details</h4>
+                    <div class="table-container">
+                        <table class="batch-attendance-table">
+                            <thead>
+                                <tr>
+                                    <th>S.No.</th>
+                                    <th>Student Name</th>
+                                    <th>Enrollment ID</th>
+                                    <th>Date Status</th>
+                                    <th>Overall Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchStudentsTable">
+                                <!-- Student records will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="batch-report-actions">
+                    <button onclick="printBatchReport()" class="print-btn">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                    <button onclick="exportBatchToExcel()" class="export-btn">
+                        <i class="fas fa-download"></i> Export to Excel
+                    </button>
+                    <button onclick="resetBatchReportForm()" class="back-btn">
+                        <i class="fas fa-arrow-left"></i> New Search
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="reportLoading" class="loading-students" style="display: none;">
+                <i class="fas fa-spinner"></i>
+                <p>Loading attendance report...</p>
+            </div>
         </div>
         
         <!-- Student Management Section -->

@@ -81,7 +81,6 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.href = 'student-dashboard.html';
             
         } catch (error) {
-            console.error('Error saving profile:', error);
             alert('Error saving profile. Please try again.');
             
             // Reset button
