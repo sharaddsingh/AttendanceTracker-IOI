@@ -137,6 +137,43 @@ function loadLeaveRequests() {
     const listContainer = document.getElementById('leaveRequestsList');
     const noRequestsMsg = document.getElementById('no-leave-requests');
 
+    // Helper to normalize Firestore Timestamp/Date/number to JS Date
+    const toJSDate = (value) => {
+        if (!value) return null;
+        try {
+            if (value.toDate && typeof value.toDate === 'function') {
+                return value.toDate();
+            }
+            if (typeof value === 'number') {
+                // treat as ms since epoch or seconds
+                return new Date(value > 1e12 ? value : value * 1000);
+            }
+            if (value instanceof Date) return value;
+            // ISO string
+            const d = new Date(value);
+            return isNaN(d.getTime()) ? null : d;
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const formatDateTime = (value) => {
+        const d = toJSDate(value);
+        if (!d) return '';
+        // Force IST (Asia/Kolkata)
+        const tz = 'Asia/Kolkata';
+        return new Intl.DateTimeFormat(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+            timeZone: tz
+        }).format(d);
+    };
+
     // Check if faculty profile is loaded and has subjects
     if (!facultyProfile || !facultyProfile.subjects || facultyProfile.subjects.length === 0) {
         listContainer.innerHTML = '';
@@ -167,16 +204,16 @@ function loadLeaveRequests() {
             });
             
             requests.sort((a, b) => {
-                const timeA = a.data.createdAt ? new Date(a.data.createdAt) : new Date(0);
-                const timeB = b.data.createdAt ? new Date(b.data.createdAt) : new Date(0);
-                return timeB - timeA;
+                const aDate = toJSDate(a.data.createdAt) || toJSDate(a.data.timestamp) || new Date(0);
+                const bDate = toJSDate(b.data.createdAt) || toJSDate(b.data.timestamp) || new Date(0);
+                return bDate - aDate;
             });
             
             requests.forEach(({ id: requestId, data: request }) => {
                 const item = document.createElement('div');
                 item.className = 'leave-request-item pending';
                 
-                const submittedDate = request.createdAt ? new Date(request.createdAt).toLocaleString() : 'Unknown';
+                const submittedDate = formatDateTime(request.createdAt || request.timestamp || request.processedAt || request.created_on);
                 
                 item.innerHTML = `
                     <div class="leave-info">

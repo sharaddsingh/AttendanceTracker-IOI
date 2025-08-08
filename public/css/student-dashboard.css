@@ -9,6 +9,15 @@ Last Updated: 2024
 */
 
 /* ===== RESET AND BASE STYLES ===== */
+:root {
+  --color-primary: #0A3D62; /* Deep Blue */
+  --color-success: #2ECC71; /* Success Green */
+  --color-text: #2C3E50;    /* Dark Text */
+  --color-bg-secondary: #F0F3F4; /* Light Gray */
+  --color-white: #FFFFFF;   /* Pure White */
+  --color-border: #D6DBDF;  /* Subtle border derived from light gray */
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -17,8 +26,8 @@ Last Updated: 2024
 }
 
 body {
-  background: linear-gradient(135deg, #f8f9fa, #ffffff);
-  color: #333333;
+  background: linear-gradient(135deg, var(--color-primary), #06283D);
+  color: var(--color-white);
   padding: 20px;
 }
 
@@ -30,19 +39,21 @@ body {
 }
 
 .section {
-  background: #ffffff;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   padding: 20px;
   border-radius: 12px;
   flex: 1 1 300px;
   min-width: 300px;
+  color: var(--color-text);
 }
 
 /* ===== TYPOGRAPHY ===== */
 h2 {
   margin-bottom: 12px;
   font-weight: 600;
+  color: var(--color-primary);
 }
 
 /* ===== CHART STYLES ===== */
@@ -58,22 +69,49 @@ canvas {
   border-radius: 8px;
   margin-bottom: 20px;
   font-weight: 600;
-  color: white;
+  color: var(--color-white);
 }
 
 /* ===== FORM STYLES ===== */
+/* Generic form control styles to ensure consistency and responsiveness */
+#profileForm input,
+#profileForm select,
+#profileForm textarea,
 .leave-form input,
 .leave-form select,
 .leave-form textarea {
   width: 100%;
+  max-width: 100%;
   margin-bottom: 10px;
-  padding: 8px;
+  padding: 10px;
+  min-height: 44px; /* touch target */
   border-radius: 8px;
   border: 1px solid #ced4da;
   background: #fff;
   color: #333;
+  font-size: 15px;
 }
 
+#profileForm select,
+.leave-form select {
+  /* Improve native select appearance and prevent overflow */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+  padding-right: 32px; /* space for arrow */
+}
+
+/* Hide the arrow in IE */
+#profileForm select::-ms-expand,
+.leave-form select::-ms-expand { display: none; }
+
+#profileForm input:focus,
+#profileForm select:focus,
+#profileForm textarea:focus,
 .leave-form input:focus,
 .leave-form select:focus,
 .leave-form textarea:focus {
@@ -83,10 +121,10 @@ canvas {
 }
 
 .leave-form button {
-  background: linear-gradient(to right, #007bff, #0056b3);
-  color: white;
+  background: linear-gradient(to right, var(--color-success), #27AE60);
+  color: var(--color-white);
   border: none;
-  padding: 10px;
+  padding: 12px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -105,11 +143,11 @@ canvas {
   gap: 8px;
   margin-top: 8px;
   padding: 8px 12px;
-  background: linear-gradient(135deg, #e3f2fd, #f8f9fa);
-  border: 1px solid #bbdefb;
+  background: linear-gradient(135deg, #E8F6F3, var(--color-bg-secondary));
+  border: 1px solid var(--color-border);
   border-radius: 20px;
   font-size: 15px;
-  color: #333;
+  color: var(--color-text);
   transition: all 0.3s ease;
 }
 
@@ -148,9 +186,9 @@ canvas {
 }
 
 .theme-toggle {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  color: #333;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   padding: 10px 15px;
   border-radius: 20px;
   cursor: pointer;
@@ -161,8 +199,8 @@ canvas {
 }
 
 .theme-toggle:hover {
-  background: #e9ecef;
-  border-color: #adb5bd;
+  background: #E5E8E8;
+  border-color: #cfd4d8;
 }
 
 /* ===== LOADING STATES ===== */
@@ -267,10 +305,10 @@ canvas {
   gap: 12px;
   padding: 15px;
   margin-bottom: 10px;
-  background: linear-gradient(135deg, #ffffff, #f8f9fa);
-  border: 1px solid #e9ecef;
+  background: linear-gradient(135deg, var(--color-white), var(--color-bg-secondary));
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  border-left: 4px solid #007bff;
+  border-left: 4px solid var(--color-primary);
   transition: all 0.3s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
@@ -282,8 +320,8 @@ canvas {
 }
 
 .notification-item.leave-approved {
-  border-left-color: #28a745;
-  background: linear-gradient(135deg, #f8fff8, #f0f8f0);
+  border-left-color: var(--color-success);
+  background: linear-gradient(135deg, #F6FFFA, #ECFDF3);
 }
 
 .notification-item.leave-rejected {
@@ -390,9 +428,9 @@ canvas {
 }
 
 .schedule-table th {
-  background: #f8f9fa;
+  background: #E5E8E8;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 .low-attendance {
@@ -480,9 +518,9 @@ canvas {
   justify-content: space-between;
   align-items: center;
   padding: 12px 15px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid #e9ecef;
-  border-left: 4px solid #007bff;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
   border-radius: 6px;
   transition: all 0.3s ease;
 }
@@ -504,7 +542,7 @@ canvas {
   font-size: 14px;
   padding: 4px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
+  background: #EAECEE;
 }
 
 /* Enhanced No Data States */
@@ -543,8 +581,8 @@ canvas {
 }
 
 .quick-action-btn {
-  background: linear-gradient(45deg, #007bff, #0056b3);
-  color: white;
+  background: linear-gradient(45deg, var(--color-primary), #06283D);
+  color: var(--color-white);
   border: none;
   padding: 8px 16px;
   border-radius: 20px;
@@ -590,12 +628,20 @@ canvas {
 
 /* ===== QR SCANNER AND PHOTO CAPTURE STYLES ===== */
 .qr-scanner-section {
-  min-width: 400px;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* Make profile modal content more responsive */
+.profile-content {
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .scanner-btn {
-  background: linear-gradient(135deg, #007bff, #0056b3);
-  color: white;
+  background: linear-gradient(135deg, var(--color-success), #27AE60);
+  color: var(--color-white);
   border: none;
   padding: 15px 30px;
   border-radius: 25px;
@@ -606,13 +652,13 @@ canvas {
   align-items: center;
   gap: 10px;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
 }
 
 .scanner-btn:hover {
-  background: linear-gradient(135deg, #0056b3, #004085);
+  background: linear-gradient(135deg, #27AE60, #1E8449);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
 }
 
 .scanner-btn i {
@@ -897,6 +943,13 @@ canvas {
     padding: 15px;
   }
 
+  /* Ensure selects are easy to use on tablets */
+  #profileForm select,
+  .leave-form select {
+    font-size: 16px; /* prevent iOS zoom */
+    min-height: 44px;
+  }
+
   h2 {
     font-size: 18px;
   }
@@ -917,10 +970,15 @@ canvas {
     padding: 6px 10px;
   }
 
+  #profileForm input,
+  #profileForm select,
+  #profileForm textarea,
   .leave-form input,
   .leave-form select,
   .leave-form textarea {
-    padding: 10px;
+    padding: 12px;
+    font-size: 16px; /* prevent iOS zoom */
+    min-height: 44px;
   }
 
   .profile-content {
@@ -934,6 +992,7 @@ canvas {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+    margin-bottom: 12px;
   }
 
   .header h1 {
@@ -947,12 +1006,35 @@ canvas {
 
   .section {
     border-radius: 8px;
+    padding: 12px;
+  }
+
+  .qr-scanner-section {
+    max-width: 100%;
+  }
+
+  .qr-reader {
+    max-width: 260px;
+    min-height: 220px;
+  }
+
+  .photo-view {
+    max-width: 300px;
+  }
+
+  /* Make dropdowns full-width and stable on very small screens */
+  #profileForm select,
+  .leave-form select {
+    width: 100%;
+    max-width: 100%;
+    background-position: right 10px center;
   }
 
   .attendance-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+    padding: 10px 12px;
   }
 }
 

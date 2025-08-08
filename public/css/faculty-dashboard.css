@@ -1,3 +1,59 @@
+
+/* =====================================
+   THEME OVERRIDES: Student/Faculty Palette
+   Applies to faculty dashboard only
+   ===================================== */
+:root {
+  --color-primary: #0A3D62; /* Deep Blue */
+  --color-success: #2ECC71; /* Success Green */
+  --color-text: #2C3E50;    /* Dark Text */
+  --color-bg-secondary: #F0F3F4; /* Light Gray */
+  --color-white: #FFFFFF;   /* Pure White */
+  --color-border: #D6DBDF;  /* Subtle border */
+}
+
+/* Base */
+body.faculty-dashboard, body[data-page="faculty-dashboard"] , body {
+  background: linear-gradient(135deg, var(--color-primary), #06283D);
+  color: var(--color-white);
+}
+
+/* Common containers */
+.section, .card, .panel, .widget, .tile {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Headings */
+h1, h2, .title, .section h2 {
+  color: var(--color-primary) !important;
+}
+
+/* Buttons primary/success */
+button, .btn, .btn-primary {
+  background: linear-gradient(135deg, var(--color-success), #27AE60) !important;
+  color: var(--color-white) !important;
+  border: none !important;
+}
+
+/* Info/quick actions */
+.quick-action-btn, .action-btn {
+  background: linear-gradient(45deg, var(--color-primary), #06283D) !important;
+  color: var(--color-white) !important;
+}
+
+/* Left borders (emphasis) */
+.attendance-item, .notification-item, .list-item {
+  border-left: 4px solid var(--color-primary) !important;
+}
+
+/* Tables */
+.table th, .schedule-table th { 
+  background: #E5E8E8 !important; 
+  color: var(--color-text) !important; 
+}
+
 /*
 ==================================================
 FACULTY DASHBOARD CSS STYLESHEET
@@ -65,9 +121,9 @@ body {
     align-items: center;
 }
 
-.dashboard {
+ .dashboard {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 20px;
 }
 

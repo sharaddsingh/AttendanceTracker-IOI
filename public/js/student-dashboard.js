@@ -913,6 +913,16 @@ function updateBatchOptions() {
 
 // Handle profile form submission - wait for DOM to be ready
 document.addEventListener('DOMContentLoaded', function() {
+  // Set min date for leave date input to prevent past dates
+  const leaveDateInput = document.getElementById('leaveDate');
+  if (leaveDateInput) {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    leaveDateInput.min = `${yyyy}-${mm}-${dd}`;
+  }
+
   const profileForm = document.getElementById('profileForm');
   if (profileForm) {
     profileForm.addEventListener('submit', function(e) {
@@ -997,6 +1007,28 @@ document.getElementById("leaveForm").addEventListener("submit", async function (
     }
     
     const formData = new FormData(e.target);
+
+    // Validate leave date is not in the past (local date)
+    const leaveDateStr = formData.get('leaveDate');
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    if (leaveDateStr && leaveDateStr < todayStr) {
+      const dateInput = document.getElementById('leaveDate') || e.target.querySelector('input[name="leaveDate"]');
+      if (dateInput) {
+        dateInput.setCustomValidity('Leave date cannot be in the past.');
+        dateInput.reportValidity();
+        // Clear custom validity after a short delay so future attempts work
+        setTimeout(() => dateInput.setCustomValidity(''), 1500);
+      } else {
+        alert('Leave date cannot be in the past.');
+      }
+      return;
+    }
+
     const leaveData = {
       userId: user.uid,
       studentEmail: user.email,
@@ -1004,7 +1036,7 @@ document.getElementById("leaveForm").addEventListener("submit", async function (
       regNumber: studentProfile.regNumber || 'N/A',
       school: studentProfile.school || 'N/A',
       batch: studentProfile.batch || 'N/A',
-      date: formData.get('leaveDate'),
+      date: leaveDateStr,
       periods: parseInt(formData.get('periods')),
       subject: formData.get('subject'),
       reason: formData.get('reason'),
