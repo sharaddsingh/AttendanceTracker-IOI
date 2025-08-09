@@ -17,6 +17,9 @@ STUDENT DASHBOARD JAVASCRIPT - CLEANED VERSION
 /* ===== ATTENDANCE DATA & CHART FUNCTIONS ===== */
 // Attendance Data - will be populated from Firebase
 let subjectData = {};
+// Track overall weighted periods across all subjects for accurate overall %
+let overallTotalPeriods = 0;
+let overallPresentPeriods = 0;
 
 // Function to fetch real-time attendance data and calculate percentages
 function fetchAttendanceData() {
@@ -29,38 +32,48 @@ function fetchAttendanceData() {
     .onSnapshot(snapshot => {
       console.log(`Fetching attendance data: ${snapshot.size} records found`);
       
-      // Calculate attendance percentages by subject
+      // Calculate attendance percentages by subject (WEIGHTED BY PERIODS)
       const subjectStats = {};
+      let totalPeriodsAll = 0;
+      let presentPeriodsAll = 0;
       
       snapshot.forEach(doc => {
         const data = doc.data();
         const { subject, status } = data;
+        // Enforce daily per-record periods within 1..4 as per rule (at most 4 classes a day)
+        const periods = Math.min(4, Math.max(1, Number(data.periods) || 1));
         
         if (!subject) return; // Skip if no subject
         
         // Initialize subject stats if not exists
         if (!subjectStats[subject]) {
           subjectStats[subject] = {
-            total: 0,
-            present: 0
+            totalPeriods: 0,
+            presentPeriods: 0
           };
         }
         
-        // Count total classes and present classes
-        subjectStats[subject].total++;
+        // Count total periods and present periods
+        subjectStats[subject].totalPeriods += periods;
+        totalPeriodsAll += periods;
         if (status === 'present') {
-          subjectStats[subject].present++;
+          subjectStats[subject].presentPeriods += periods;
+          presentPeriodsAll += periods;
         }
       });
       
-      // Calculate percentages
+      // Calculate percentages (per subject)
       const data = {};
       Object.keys(subjectStats).forEach(subject => {
         const stats = subjectStats[subject];
-        const percentage = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+        const percentage = stats.totalPeriods > 0 ? Math.round((stats.presentPeriods / stats.totalPeriods) * 100) : 0;
         data[subject] = percentage;
-        console.log(`${subject}: ${stats.present}/${stats.total} = ${percentage}%`);
+        console.log(`${subject}: ${stats.presentPeriods}/${stats.totalPeriods} periods = ${percentage}%`);
       });
+      
+      // Save overall weighted periods for accurate overall attendance computation
+      overallTotalPeriods = totalPeriodsAll;
+      overallPresentPeriods = presentPeriodsAll;
       
       subjectData = data;
       updateCharts();
@@ -72,6 +85,8 @@ function fetchAttendanceData() {
       console.error('Error fetching attendance data:', error);
       // Don't break the app, just log the error
       subjectData = {};
+      overallTotalPeriods = 0;
+      overallPresentPeriods = 0;
       updateChartsVisibility();
     });
 }
@@ -115,15 +130,12 @@ function updateCharts() {
     overallChart.destroy();
   }
 
-  // Only create charts if we have data
-  if (Object.keys(subjectData).length === 0) {
-    console.log('No attendance data available for charts');
-    return;
-  }
+  const hasSubjectData = Object.keys(subjectData).length > 0;
+  const hasOverallData = overallTotalPeriods > 0 || hasSubjectData; // allow overall even if subjectData empty
 
-  // Subject-wise chart
+  // Subject-wise chart (only if we have subject data)
   const subjectChartCanvas = document.getElementById("subjectChart");
-  if (subjectChartCanvas) {
+  if (subjectChartCanvas && hasSubjectData) {
     subjectChart = new Chart(subjectChartCanvas, {
       type: 'bar',
       data: {
@@ -141,13 +153,12 @@ function updateCharts() {
     });
   }
 
-  // Calculate overall attendance for the doughnut chart
-  const overallAttendance = calculateOverallAttendance();
-  const missedPercentage = 100 - overallAttendance;
-
-  // Overall attendance chart
+  // Overall attendance chart (render if we have any overall data)
   const overallChartCanvas = document.getElementById("overallChart");
-  if (overallChartCanvas) {
+  if (overallChartCanvas && hasOverallData) {
+    const overallAttendance = calculateOverallAttendance();
+    const missedPercentage = Math.max(0, 100 - overallAttendance);
+
     overallChart = new Chart(overallChartCanvas, {
       type: 'doughnut',
       data: {
@@ -167,14 +178,15 @@ function updateCharts() {
 
 // Update charts visibility based on data availability
 function updateChartsVisibility() {
-  const hasData = Object.keys(subjectData).length > 0;
+  const hasSubjectData = Object.keys(subjectData).length > 0;
+  const hasOverallData = overallTotalPeriods > 0 || hasSubjectData;
   
   // Subject-wise chart section
   const subjectChartCanvas = document.getElementById("subjectChart");
   const noSubjectData = document.getElementById("noSubjectData");
   
   if (subjectChartCanvas && noSubjectData) {
-    if (hasData) {
+    if (hasSubjectData) {
       subjectChartCanvas.style.display = 'block';
       noSubjectData.style.display = 'none';
     } else {
@@ -188,7 +200,7 @@ function updateChartsVisibility() {
   const noOverallData = document.getElementById("noOverallData");
   
   if (overallChartCanvas && noOverallData) {
-    if (hasData) {
+    if (hasOverallData) {
       overallChartCanvas.style.display = 'block';
       noOverallData.style.display = 'none';
     } else {
@@ -197,7 +209,7 @@ function updateChartsVisibility() {
     }
   }
   
-  console.log(`Charts visibility updated: ${hasData ? 'showing' : 'hiding'} charts`);
+  console.log(`Charts visibility updated: subjectData=${hasSubjectData}, overallData=${hasOverallData}`);
 }
 
 
@@ -351,11 +363,21 @@ function changeTodayAttendance(classId) {
 /* ===== FIREBASE SERVICES (from firebase-config.js) ===== */
 // Firebase services are initialized in firebase-config.js
 
+// Helper: get YYYY-MM-DD in Asia/Kolkata
+function getISTDateString(d = new Date()) {
+  // Use Intl to format in IST then build YYYY-MM-DD
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${day}`;
+}
+
 // Fetch today's attendance from Firebase
 async function fetchTodayAttendance(user) {
   const todayAttendanceList = document.getElementById('todayAttendanceList');
   const noTodayAttendance = document.getElementById('noTodayAttendance');
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = getISTDateString(); // YYYY-MM-DD in IST
 
   try {
     const attendanceRef = db.collection('attendances')
@@ -366,6 +388,9 @@ async function fetchTodayAttendance(user) {
 
     if (snapshot.empty) {
       noTodayAttendance.style.display = 'block';
+      if (noTodayAttendance) {
+        noTodayAttendance.textContent = 'No classes today';
+      }
       todayAttendanceList.innerHTML = ''; // Clear existing entries
       return;
     }
@@ -373,19 +398,57 @@ async function fetchTodayAttendance(user) {
     noTodayAttendance.style.display = 'none';
     todayAttendanceList.innerHTML = ''; // Clear existing entries
 
+    // Clamp total displayed classes to a maximum of 4 (legacy-safe)
+    let remaining = 4;
+    let totalRaw = 0;
+    let clamped = false;
+
+    // Collect docs and sort by timestamp/markedAt for stable ordering
+    const records = [];
     snapshot.forEach(doc => {
-      const { subject, status } = doc.data();
-      const statusText = status === 'present' ? 'Present' : 'Absent';
-      const statusColor = status === 'present' ? '#28a745' : '#dc3545';
+      const d = doc.data();
+      records.push({
+        subject: d.subject,
+        status: d.status,
+        periods: Math.min(4, Math.max(1, Number(d.periods) || 1)),
+        when: d.markedAt?.toDate?.() || d.timestamp?.toDate?.() || new Date(d.date)
+      });
+    });
+    records.sort((a,b) => (a.when || 0) - (b.when || 0));
+
+    for (const rec of records) {
+      totalRaw += rec.periods;
+      const counted = Math.max(0, Math.min(rec.periods, remaining));
+      if (counted < rec.periods) clamped = true;
+      if (counted === 0 && remaining === 0) {
+        // Do not render extra items once cap reached
+        continue;
+      }
+      remaining -= counted;
+
+      const statusText = rec.status === 'present' ? 'Present' : 'Absent';
+      const statusColor = rec.status === 'present' ? '#28a745' : '#dc3545';
+      const periodsLabel = counted ? ` (${counted} ${counted > 1 ? 'classes' : 'class'})` : ' (0 counted)';
       
       const attendanceItem = `
         <div class="attendance-item" style="border-left-color: ${statusColor};">
-          <span class="subject-name">${subject}</span>
-          <span class="attendance-status" style="color: ${statusColor};">${statusText}</span>
+          <span class="subject-name">${rec.subject}</span>
+          <span class="attendance-status" style="color: ${statusColor};">${statusText}${periodsLabel}</span>
         </div>
       `;
       todayAttendanceList.innerHTML += attendanceItem;
-    });
+
+      if (remaining <= 0) {
+        remaining = 0; // ensure non-negative
+      }
+    }
+
+    if (clamped || totalRaw > 4) {
+      const note = document.createElement('div');
+      note.style.cssText = 'margin-top:8px; font-size:12px; color:#6c757d;';
+      note.textContent = 'Showing up to 4 classes (daily maximum).';
+      todayAttendanceList.appendChild(note);
+    }
 
   } catch (error) {
     console.error('Error fetching today\'s attendance:', error);
@@ -399,10 +462,12 @@ async function fetchYesterdayAttendance(user) {
   const yesterdayList = document.getElementById('yesterdayList');
   const noYesterdayData = document.getElementById('noYesterdayData');
   
-  // Calculate yesterday's date
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayDate = yesterday.toISOString().slice(0, 10); // YYYY-MM-DD
+  // Calculate yesterday's date in IST
+  const now = new Date();
+  const istNowStr = getISTDateString(now);
+  const istNow = new Date(istNowStr + 'T00:00:00');
+  const yD = new Date(istNow.getTime() - 24 * 60 * 60 * 1000);
+  const yesterdayDate = getISTDateString(yD); // YYYY-MM-DD (IST)
 
   try {
     const attendanceRef = db.collection('attendances')
@@ -413,6 +478,9 @@ async function fetchYesterdayAttendance(user) {
 
     if (snapshot.empty) {
       noYesterdayData.style.display = 'block';
+      if (noYesterdayData) {
+        noYesterdayData.textContent = 'No classes yesterday';
+      }
       yesterdayList.style.display = 'none';
       yesterdayList.innerHTML = ''; // Clear existing entries
       console.log('No attendance data found for yesterday:', yesterdayDate);
@@ -431,6 +499,8 @@ async function fetchYesterdayAttendance(user) {
       const statusText = status === 'present' ? 'Present' : 'Absent';
       const statusColor = status === 'present' ? '#28a745' : '#dc3545';
       const statusIcon = status === 'present' ? 'fa-check-circle' : 'fa-times-circle';
+      const p = Number(periods);
+      const periodsText = p ? `${p} ${p > 1 ? 'classes' : 'class'}` : '';
       
       const attendanceItem = document.createElement('li');
       attendanceItem.className = 'attendance-item';
@@ -451,7 +521,7 @@ async function fetchYesterdayAttendance(user) {
         <div style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${statusIcon}" style="color: ${statusColor}; font-size: 16px;"></i>
           <span class="subject-name" style="font-weight: 600; color: #fff;">${subject}</span>
-          ${periods ? `<span style="font-size: 12px; color: #aaa;">(${periods} periods)</span>` : ''}
+          ${periodsText ? `<span style="font-size: 12px; color: #aaa;">(${periodsText})</span>` : ''}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="attendance-status" style="color: ${statusColor}; font-weight: 600;">${statusText}</span>
@@ -1125,6 +1195,7 @@ function extractNameFromEmail(email) {
   }
 }
 
+
 // Load user profile and populate welcome message
 async function loadUserProfile(user) {
   console.log('loadUserProfile called for:', user.email);
@@ -1226,6 +1297,11 @@ function updateWelcomeMessage(studentName, regNumber = null) {
 
 // Calculate overall attendance percentage
 function calculateOverallAttendance() {
+  // Prefer weighted computation by periods if we have it
+  if (overallTotalPeriods > 0) {
+    return Math.round((overallPresentPeriods / overallTotalPeriods) * 100);
+  }
+  // Fallback to simple average of subject percentages
   const attendanceValues = Object.values(subjectData);
   if (attendanceValues.length === 0) return 0;
   const total = attendanceValues.reduce((sum, val) => sum + val, 0);
@@ -1298,13 +1374,13 @@ function downloadReport() {
   // Simulate report generation
   setTimeout(() => {
     const overallAttendance = calculateOverallAttendance();
-    const reportData = {
-      studentName: JSON.parse(localStorage.getItem('studentProfile') || '{}').fullName || 'Student',
-      overallAttendance: `${overallAttendance}%`,
-      subjects: subjectData,
-      todayStatus: todayAttendanceStatus,
-      generatedOn: new Date().toLocaleDateString()
-    };
+      const reportData = {
+        studentName: JSON.parse(localStorage.getItem('studentProfile') || '{}').fullName || 'Student',
+        overallAttendance: `${overallAttendance}%`,
+        subjects: subjectData,
+        todayStatus: todayAttendanceStatus,
+        generatedOn: typeof formatISTDateTime === 'function' ? formatISTDateTime(new Date()) : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+      };
     
     const reportContent = `
 ATTENDANCE REPORT
@@ -1915,26 +1991,57 @@ async function markAttendance(qrData) {
       return;
     }
     
-    // Get student profile data
+    // Get student profile data from local storage (existing behavior)
     const savedProfile = localStorage.getItem('studentProfile');
     let studentProfile = {};
     if (savedProfile) {
       studentProfile = JSON.parse(savedProfile);
     }
-    
-    // Validate student belongs to the same batch/school as QR code
-    if (studentProfile.school && studentProfile.school !== qrData.school) {
+
+    // EXTRA GUARD: Ensure only students from the QR's school and batch can mark attendance
+    // If local profile is missing or incomplete, try fetching from Firestore
+    try {
+      const needsFetch = !studentProfile || !studentProfile.school || !studentProfile.batch;
+      if (needsFetch && auth.currentUser) {
+        const profSnap = await db.collection('profiles').doc(auth.currentUser.uid).get();
+        if (profSnap.exists) {
+          const profData = profSnap.data();
+          if (profData && profData.school && profData.batch) {
+            studentProfile.school = profData.school;
+            studentProfile.batch = profData.batch;
+            // Cache back to localStorage to avoid future lookups
+            const cached = JSON.parse(localStorage.getItem('studentProfile') || '{}');
+            localStorage.setItem('studentProfile', JSON.stringify({ ...cached, school: profData.school, batch: profData.batch }));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch profile from Firestore for strict QR validation:', e);
+    }
+
+    // Normalize and strictly compare school and batch
+    const qrSchool = String(qrData.school || '').trim();
+    const qrBatch = String(qrData.batch || '').trim();
+    const profSchool = String(studentProfile.school || '').trim();
+    const profBatch = String(studentProfile.batch || '').trim();
+
+    if (!profSchool || !profBatch) {
+      showNotification('Profile Required', 'Complete your profile (school and batch) before scanning the QR.');
+      return;
+    }
+
+    if (profSchool !== qrSchool) {
       showNotification('Invalid QR Code', 'This QR code is not for your school.');
       return;
     }
-    
-    if (studentProfile.batch && studentProfile.batch !== qrData.batch) {
+
+    if (profBatch !== qrBatch) {
       showNotification('Invalid QR Code', 'This QR code is not for your batch.');
       return;
     }
     
     // Check if already marked attendance for this session
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getISTDateString();
     const attendanceQuery = await db.collection('attendances')
       .where('userId', '==', user.uid)
       .where('date', '==', today)
@@ -1946,7 +2053,7 @@ async function markAttendance(qrData) {
       return;
     }
     
-    // Create attendance record
+    // Create attendance record (include faculty identifiers from QR)
     const attendanceData = {
       userId: user.uid,
       studentEmail: user.email,
@@ -1961,7 +2068,13 @@ async function markAttendance(qrData) {
       status: 'present',
       markedAt: new Date(),
       qrTimestamp: qrData.timestamp,
-      scanDelay: Date.now() - qrData.timestamp
+      scanDelay: Date.now() - qrData.timestamp,
+      verificationMethod: 'qr',
+      hasPhoto: false,
+      qrSessionId: qrData.sessionId || null,
+      facultyId: qrData.facultyId || null,
+      facultyName: qrData.facultyName || null,
+      markedBy: qrData.facultyId || null
     };
     
     // Save to Firebase
@@ -2519,7 +2632,7 @@ async function markAttendanceWithPhoto(qrData, photoData) {
       return;
     }
     
-    // Get student profile data
+    // Get student profile data from local storage (existing behavior)
     const savedProfile = localStorage.getItem('studentProfile');
     let studentProfile = {};
     if (savedProfile) {
@@ -2538,7 +2651,7 @@ async function markAttendanceWithPhoto(qrData, photoData) {
     }
     
     // Check if already marked attendance for this session
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getISTDateString();
     const attendanceQuery = await db.collection('attendances')
       .where('userId', '==', user.uid)
       .where('date', '==', today)
@@ -2550,7 +2663,7 @@ async function markAttendanceWithPhoto(qrData, photoData) {
       return;
     }
     
-    // Create attendance record with photo
+    // Create attendance record with photo (include faculty identifiers from QR)
     const attendanceData = {
       userId: user.uid,
       studentEmail: user.email,
@@ -2568,7 +2681,11 @@ async function markAttendanceWithPhoto(qrData, photoData) {
       scanDelay: Date.now() - qrData.timestamp,
       hasPhoto: true,
       photoTimestamp: new Date(),
-      verificationMethod: 'qr_and_photo'
+      verificationMethod: 'qr_and_photo',
+      qrSessionId: qrData.sessionId || null,
+      facultyId: qrData.facultyId || null,
+      facultyName: qrData.facultyName || null,
+      markedBy: qrData.facultyId || null
     };
     
     // For now, we'll store photo data as a field (in production, use Firebase Storage)

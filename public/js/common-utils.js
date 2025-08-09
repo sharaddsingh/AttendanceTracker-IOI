@@ -105,9 +105,39 @@ const CommonUtils = {
     return '#dc3545';
   },
 
-  // Format date
+  // Format date to "DD Mon YYYY" in IST
+  formatISTDate: function(date) {
+    const d = new Date(date);
+    const parts = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).formatToParts(d);
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const mon = parts.find(p => p.type === 'month')?.value || '';
+    const yr = parts.find(p => p.type === 'year')?.value || '';
+    return `${day} ${mon} ${yr}`;
+  },
+
+  // Format date-time to "DD Mon YYYY, HH:mm" in IST (24-hour)
+  formatISTDateTime: function(date) {
+    const d = new Date(date);
+    const dateStr = CommonUtils.formatISTDate(d);
+    const timeParts = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).formatToParts(d);
+    const hh = timeParts.find(p => p.type === 'hour')?.value || '';
+    const mm = timeParts.find(p => p.type === 'minute')?.value || '';
+    return `${dateStr}, ${hh}:${mm}`;
+  },
+
+  // Backwards-compatible generic date formatter (kept for legacy usage)
   formatDate: function(date) {
-    return new Date(date).toLocaleDateString();
+    return CommonUtils.formatISTDate(date);
   },
 
   // Validate profile data
@@ -121,3 +151,5 @@ const CommonUtils = {
 
 // Make functions available globally
 window.updateBatchOptions = CommonUtils.updateBatchOptions;
+window.formatISTDate = CommonUtils.formatISTDate;
+window.formatISTDateTime = CommonUtils.formatISTDateTime;

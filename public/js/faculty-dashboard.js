@@ -160,17 +160,15 @@ function loadLeaveRequests() {
     const formatDateTime = (value) => {
         const d = toJSDate(value);
         if (!d) return '';
-        // Force IST (Asia/Kolkata)
-        const tz = 'Asia/Kolkata';
-        return new Intl.DateTimeFormat(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true,
-            timeZone: tz
+        // Use shared formatter for IST
+        if (typeof window.formatISTDateTime === 'function') {
+            return window.formatISTDateTime(d);
+        }
+        // Fallback
+        return new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
         }).format(d);
     };
 
@@ -363,16 +361,6 @@ async function createStudentNotification(requestId, status, comment = '') {
     }
 }
 
-/**
- * Legacy functions for backward compatibility
- */
-function approveLeave(requestId) {
-    showApprovalDialog(requestId, 'approved');
-}
-
-function rejectLeave(requestId) {
-    showApprovalDialog(requestId, 'rejected');
-}
 
 // ===== QR MODAL FUNCTIONS =====
 
@@ -455,9 +443,10 @@ function closeQRModal() {
 }
 
 /**
- * Updates batch options based on selected school
+ * Updates batch options for the QR modal based on selected school
+ * Note: renamed to avoid clashing with CommonUtils.updateBatchOptions used elsewhere.
  */
-function updateBatchOptions() {
+function updateQRBatchOptions() {
     const schoolSelect = document.getElementById('qrSchool');
     const batchSelect = document.getElementById('qrBatch');
     const selectedSchool = schoolSelect.value;
@@ -496,7 +485,8 @@ function generateQRCode() {
     const school = document.getElementById('qrSchool').value;
     const batch = document.getElementById('qrBatch').value;
     const subject = document.getElementById('qrSubject').value;
-    const periods = document.getElementById('qrPeriods').value;
+    const periodsInput = document.getElementById('qrPeriods').value;
+    const periods = Math.min(4, Math.max(1, parseInt(periodsInput, 10) || 1));
     
     console.log('Form values:', { school, batch, subject, periods });
     
@@ -505,76 +495,92 @@ function generateQRCode() {
         alert('Please fill in all fields to generate a QR code.');
         return;
     }
-    
-    // Hide form and show QR display
-    document.getElementById('qrForm').style.display = 'none';
-    const qrCodeDisplay = document.getElementById('qrCodeDisplay');
-    qrCodeDisplay.style.display = 'block';
-    
-    // Populate display information
-    document.getElementById('displaySchool').textContent = school;
-    document.getElementById('displayBatch').textContent = batch;
-    document.getElementById('displaySubject').textContent = subject;
-    document.getElementById('displayPeriods').textContent = periods;
-    
-    // Create unique session ID and QR data
+
+    // Reserve today's periods for this batch (max 4) using a transaction
+    const db = firebase.firestore();
+    const today = new Date().toISOString().split('T')[0];
+    const dailyDocId = `${school.replace(/\s+/g,'_')}_${batch}_${today}`;
+    const dailyRef = db.collection('dailySchedules').doc(dailyDocId);
+
+    // Create unique session ID first (needed if transaction succeeds)
     const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = Date.now();
-    const qrData = {
-        sessionId: sessionId,
-        school: school,
-        batch: batch,
-        subject: subject,
-        periods: parseInt(periods),
-        facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
-        facultyId: currentFaculty.uid,
-        timestamp: now,
-        expiry: now + (30 * 1000), // 30 seconds from now
-        validFor: 30, // 30 seconds
-        redirectUrl: window.location.origin + '/student-dashboard.html'
-    };
-    
-    console.log('Generated QR Data:', qrData);
-    
-    // Generate QR Code
-    const qrCanvas = document.getElementById('qrCodeCanvas');
-    const qrDataString = JSON.stringify(qrData);
-    
-    console.log('QR Data String length:', qrDataString.length);
-    
-    try {
-        QRCode.toCanvas(qrCanvas, qrDataString, { 
-            width: 256,
-            height: 256,
-            colorDark: '#000000',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.M
-        }, (error) => {
-            if (error) {
-                console.error('QR Code generation error:', error);
-                alert('Failed to generate QR code. Please try again.');
-                // Show the form again on error
-                document.getElementById('qrForm').style.display = 'block';
-                document.getElementById('qrCodeDisplay').style.display = 'none';
-                return;
-            }
-            
-            console.log('QR Code generated successfully!');
-            console.log('QR Data:', qrData);
-            
-            // Store the current QR session data for absent student processing
-            currentQRSession = qrData;
-            
-            // Start 30-second countdown timer
-            startQRTimer();
-        });
-    } catch (qrError) {
-        console.error('QRCode.toCanvas error:', qrError);
-        alert('Error generating QR code: ' + qrError.message);
-        // Show the form again on error
-        document.getElementById('qrForm').style.display = 'block';
-        document.getElementById('qrCodeDisplay').style.display = 'none';
-    }
+
+    db.runTransaction(async (tx) => {
+        const snap = await tx.get(dailyRef);
+        const data = snap.exists ? snap.data() : { totalPeriods: 0, sessions: [], date: today, school, batch };
+        const newTotal = (Number(data.totalPeriods) || 0) + periods;
+        if (newTotal > 4) {
+            throw new Error(`Daily limit exceeded. Planned: ${data.totalPeriods || 0}, requested: ${periods}, max: 4`);
+        }
+        const newSessions = (data.sessions || []).concat([{ sessionId, subject, periods, createdAt: new Date() }]);
+        tx.set(dailyRef, { ...data, totalPeriods: newTotal, sessions: newSessions, updatedAt: new Date() }, { merge: true });
+        return newTotal;
+    }).then((newTotal) => {
+        console.log('Reserved periods successfully. New total for the day:', newTotal);
+        // Hide form and show QR display
+        document.getElementById('qrForm').style.display = 'none';
+        const qrCodeDisplay = document.getElementById('qrCodeDisplay');
+        qrCodeDisplay.style.display = 'block';
+        
+        // Populate display information
+        document.getElementById('displaySchool').textContent = school;
+        document.getElementById('displayBatch').textContent = batch;
+        document.getElementById('displaySubject').textContent = subject;
+        document.getElementById('displayPeriods').textContent = periods;
+        
+        // Build QR data now that reservation succeeded
+        const now = Date.now();
+        const qrData = {
+            sessionId: sessionId,
+            school: school,
+            batch: batch,
+            subject: subject,
+            periods: parseInt(periods),
+            facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
+            facultyId: currentFaculty.uid,
+            timestamp: now,
+            expiry: now + (30 * 1000), // 30 seconds from now
+            validFor: 30, // 30 seconds
+            redirectUrl: window.location.origin + '/student-dashboard.html'
+        };
+        console.log('Generated QR Data:', qrData);
+        
+        // Generate QR Code
+        const qrCanvas = document.getElementById('qrCodeCanvas');
+        const qrDataString = JSON.stringify(qrData);
+        console.log('QR Data String length:', qrDataString.length);
+        try {
+            QRCode.toCanvas(qrCanvas, qrDataString, { 
+                width: 256,
+                height: 256,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            }, (error) => {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    alert('Failed to generate QR code. Please try again.');
+                    // Show the form again on error
+                    document.getElementById('qrForm').style.display = 'block';
+                    document.getElementById('qrCodeDisplay').style.display = 'none';
+                    return;
+                }
+                console.log('QR Code generated successfully!');
+                console.log('QR Data:', qrData);
+                // Store current session for absent processing
+                currentQRSession = qrData;
+                startQRTimer();
+            });
+        } catch (qrError) {
+            console.error('QRCode.toCanvas error:', qrError);
+            alert('Error generating QR code: ' + qrError.message);
+            document.getElementById('qrForm').style.display = 'block';
+            document.getElementById('qrCodeDisplay').style.display = 'none';
+        }
+    }).catch((err) => {
+        console.error('Daily reservation failed:', err);
+        alert(`Cannot generate QR: ${err.message}. Daily max is 4 classes.`);
+    });
 }
 
 /**
@@ -658,43 +664,9 @@ window.onclick = function(event) {
 window.openQRModal = openQRModal;
 window.closeQRModal = closeQRModal;
 window.generateQRCode = generateQRCode;
-window.updateBatchOptions = updateBatchOptions;
+window.updateQRBatchOptions = updateQRBatchOptions;
 window.regenerateQR = regenerateQR;
 
-/**
- * Legacy QR generation function - kept for backward compatibility
- */
-function generateQRCodeLegacy() {
-    const subject = document.getElementById('subjectSelect').value;
-    const sessionDate = document.getElementById('sessionDate').value;
-    const sessionTime = document.getElementById('sessionTime').value;
-    const duration = document.getElementById('duration').value;
-
-    if (!subject || !sessionDate || !sessionTime) {
-        alert('Please fill in all fields to generate a QR code.');
-        return;
-    }
-
-    // Example QR Content: { "subject": "JAVA", "datetime": "2025-08-06T10:30", "validFor": 60 }
-    const qrData = JSON.stringify({
-        subject: subject,
-        datetime: `${sessionDate}T${sessionTime}`,
-        validFor: parseInt(duration, 10)
-    });
-
-    const qrcodeCanvas = document.getElementById('qrcode');
-    const qrDisplayDiv = document.getElementById('qrDisplay');
-
-    QRCode.toCanvas(qrcodeCanvas, qrData, { width: 256 }, (error) => {
-        if (error) {
-            console.error(error);
-            alert('Failed to generate QR code.');
-            return;
-        }
-        console.log('QR Code generated successfully!');
-        qrDisplayDiv.style.display = 'block';
-    });
-}
 
 /**
  * Signs the faculty member out.
@@ -716,34 +688,65 @@ function logout() {
  * @param {Object} user - Firebase user object
  */
 async function checkAndLoadFacultyProfile(user) {
+    const db = firebase.firestore();
+
+    // Avoid re-prompting within the same session after successful completion
+    const sessionCompleted = sessionStorage.getItem('facultyProfileCompleted') === 'true';
+
     try {
-        const db = firebase.firestore();
+        // First, attempt to fetch the faculty profile
         const facultyDoc = await db.collection('faculty').doc(user.uid).get();
-        
-        if (!facultyDoc.exists) {
-            // Faculty document doesn't exist, show profile completion popup
-            console.log('Faculty profile not found, showing completion popup');
-            showFacultyProfilePopup();
-        } else {
+
+        if (facultyDoc.exists) {
             const data = facultyDoc.data();
             facultyProfile = data;
-            
-            // Check if profile is complete
-            if (!data.fullName || !data.employeeId || !data.departments || data.departments.length === 0 || !data.subjects || data.subjects.length === 0) {
-                console.log('Incomplete faculty profile, showing completion popup');
-                showFacultyProfilePopup();
-            } else {
-                // Profile is complete, initialize dashboard
+
+            const isComplete = !!(data.fullName && data.employeeId && Array.isArray(data.departments) && data.departments.length > 0 && Array.isArray(data.subjects) && data.subjects.length > 0);
+
+            if (isComplete) {
                 console.log('Faculty profile complete, initializing dashboard');
                 hideFacultyProfilePopup();
                 showFacultyWelcome(data);
                 initializeFacultyDashboard();
                 populateSubjectOptions(data.subjects);
+                // Mark session flag so we don't flicker the popup on future checks this session
+                sessionStorage.setItem('facultyProfileCompleted', 'true');
+                return;
             }
+            // If doc exists but incomplete, fall through to show popup below
+            console.log('Incomplete faculty profile detected.');
+        } else {
+            console.log('Faculty profile document not found.');
         }
+
+        // Fallback: check the users collection flag if available
+        try {
+            const userDoc = await db.collection('users').doc(user.uid).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            if (userData && userData.profileCompleted && sessionCompleted) {
+                // If user doc says completed and we already completed this session, avoid showing popup
+                console.log('User profileCompleted flag set; skipping popup this session. Retrying initialization.');
+                hideFacultyProfilePopup();
+                initializeFacultyDashboard();
+                // Subjects may still be needed; try to populate if we have them
+                if (facultyProfile && Array.isArray(facultyProfile.subjects)) {
+                    populateSubjectOptions(facultyProfile.subjects);
+                }
+                return;
+            }
+        } catch (userDocErr) {
+            console.warn('Could not read users doc for fallback:', userDocErr);
+            // Do not force popup just due to a transient read error
+        }
+
+        // If we reached here, we likely need profile completion
+        console.log('Showing faculty profile completion popup');
+        showFacultyProfilePopup();
     } catch (error) {
         console.error('Error checking faculty profile:', error);
-        showFacultyProfilePopup(); // Show popup on error as fallback
+        // Do not immediately force a popup on transient errors; show a gentle message and retry option
+        // As a safe fallback, we still show the popup to unblock usage
+        showFacultyProfilePopup();
     }
 }
 
@@ -1461,7 +1464,8 @@ async function submitManualAttendance() {
     const school = document.getElementById('manualSchool').value;
     const batchName = document.getElementById('manualBatch').value;
     const subject = document.getElementById('manualSubject').value;
-    const periods = parseInt(document.getElementById('manualPeriods').value);
+    const periodsRaw = parseInt(document.getElementById('manualPeriods').value);
+    const periods = Math.min(4, Math.max(1, periodsRaw || 1));
     
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
@@ -1470,6 +1474,21 @@ async function submitManualAttendance() {
         console.log('Submitting manual attendance...');
         
         const db = firebase.firestore();
+
+        // Reserve today's periods for this batch (transactional guard)
+        const dailyDocId = `${school.replace(/\s+/g,'_')}_${batchName}_${today}`;
+        const dailyRef = db.collection('dailySchedules').doc(dailyDocId);
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(dailyRef);
+            const data = snap.exists ? snap.data() : { totalPeriods: 0, sessions: [], date: today, school, batch: batchName };
+            const newTotal = (Number(data.totalPeriods) || 0) + periods;
+            if (newTotal > 4) {
+                throw new Error(`Daily limit exceeded. Planned: ${data.totalPeriods || 0}, requested: ${periods}, max: 4`);
+            }
+            const newSessions = (data.sessions || []).concat([{ sessionId: `manual_${Date.now()}`, subject, periods, createdAt: new Date(), type: 'manual' }]);
+            tx.set(dailyRef, { ...data, totalPeriods: newTotal, sessions: newSessions, updatedAt: new Date() }, { merge: true });
+        });
+
         const batchWrite = db.batch();
         
         // Prepare attendance records
@@ -1863,6 +1882,9 @@ async function generateAttendanceReport() {
                 method: method,
                 markedAt: markedAt,
                 facultyName: facultyName,
+                markedBy: record.markedBy || null,
+                facultyId: record.facultyId || record.markedBy || null,
+                facultyEmail: record.facultyEmail || null,
                 hasPhoto: record.hasPhoto || false,
                 verificationMethod: record.verificationMethod || method
             });
@@ -1907,24 +1929,84 @@ async function generateAttendanceReport() {
             recordsCount: attendanceRecords.length
         });
         
-        // DIRECT FIX FOR FACULTY NAMES - HARD-CODED
-        console.log('🔍 APPLYING DIRECT FIX FOR FACULTY NAMES');
+        // Resolve faculty names dynamically (no hardcoded names)
+        console.log('🔍 Resolving faculty names from faculty/profiles/users');
         
-        // Directly set faculty names instead of trying to look up in database
-        attendanceRecords.forEach(record => {
-            // For any record with Unknown or QR Attendance faculty name, set proper value
-            if (record.facultyName === 'Unknown' || record.facultyName === 'QR Attendance') {
-                record.facultyName = 'Dr. Vivek Tyagi';
-                console.log(`✅ Fixed faculty name for record ${record.id}`);
-            }
-            // Also fix Faculty- placeholder names
-            if (record.facultyName && record.facultyName.startsWith('Faculty-')) {
-                record.facultyName = 'Dr. Vivek Tyagi';
-                console.log(`✅ Fixed placeholder faculty name for record ${record.id}`);
+        // Determine which records still need a name
+        const needsName = (name) => !name || name === 'Unknown' || name === 'QR Attendance' || (typeof name === 'string' && name.startsWith('Faculty-'));
+        
+        // Collect identifiers to resolve
+        const idsToResolve = new Set();
+        attendanceRecords.forEach(r => {
+            if (needsName(r.facultyName)) {
+                if (r.facultyId) idsToResolve.add(r.facultyId);
+                else if (r.markedBy) idsToResolve.add(r.markedBy);
             }
         });
         
-        console.log('✅ Fixed all faculty names to a valid value');
+        if (idsToResolve.size > 0) {
+            try {
+                const idList = Array.from(idsToResolve);
+                const nameMap = {};
+                
+                // 1) Try faculty collection
+                const facultyDocs = await Promise.all(idList.map(id => db.collection('faculty').doc(id).get().catch(() => null)));
+                facultyDocs.forEach((snap, i) => {
+                    if (snap && snap.exists) {
+                        const d = snap.data();
+                        nameMap[idList[i]] = d.fullName || d.name || d.facultyName || d.email || idList[i];
+                    }
+                });
+                
+                // 2) Profiles for remaining
+                const remainingForProfiles = idList.filter(id => !nameMap[id]);
+                if (remainingForProfiles.length) {
+                    const profileDocs = await Promise.all(remainingForProfiles.map(id => db.collection('profiles').doc(id).get().catch(() => null)));
+                    profileDocs.forEach((snap, i) => {
+                        if (snap && snap.exists) {
+                            const d = snap.data();
+                            nameMap[remainingForProfiles[i]] = d.fullName || d.name || d.facultyName || d.email || remainingForProfiles[i];
+                        }
+                    });
+                }
+                
+                // 3) Users for any still remaining
+                const remainingForUsers = idList.filter(id => !nameMap[id]);
+                if (remainingForUsers.length) {
+                    const userDocs = await Promise.all(remainingForUsers.map(id => db.collection('users').doc(id).get().catch(() => null)));
+                    userDocs.forEach((snap, i) => {
+                        if (snap && snap.exists) {
+                            const d = snap.data();
+                            nameMap[remainingForUsers[i]] = d.fullName || d.name || d.facultyName || d.email || remainingForUsers[i];
+                        }
+                    });
+                }
+                
+                // Apply resolved names
+                attendanceRecords.forEach(r => {
+                    const key = r.facultyId || r.markedBy;
+                    if (needsName(r.facultyName) && key && nameMap[key]) {
+                        r.facultyName = nameMap[key];
+                    }
+                });
+            } catch (e) {
+                console.warn('⚠️ Unable to resolve some faculty names:', e);
+            }
+        }
+        
+        // As a last resort, if record has a facultyEmail and still no name, use that
+        attendanceRecords.forEach(r => {
+            if (needsName(r.facultyName) && r.facultyEmail) {
+                r.facultyName = r.facultyEmail;
+            }
+        });
+        
+        // Replace any remaining placeholder values with a neutral dash
+        attendanceRecords.forEach(r => {
+            if (needsName(r.facultyName)) {
+                r.facultyName = '-';
+            }
+        });
         
         // Display the report with updated faculty names
         displayAttendanceReport({
@@ -1980,7 +2062,7 @@ function displayAttendanceReport(reportData) {
         reportSubjectElements[0].textContent = subject;
     }
     
-    document.getElementById('reportGeneratedDate').textContent = new Date().toLocaleDateString();
+    document.getElementById('reportGeneratedDate').textContent = (typeof formatISTDate === 'function') ? formatISTDate(new Date()) : new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
     
     // Populate summary
     document.getElementById('totalClassesAttended').textContent = totalPresent;
@@ -2019,11 +2101,9 @@ function displayAttendanceReport(reportData) {
             const row = document.createElement('tr');
             row.className = record.status === 'present' ? 'present-row' : 'absent-row';
             
-            const formattedDate = new Date(record.date).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
+            const formattedDate = (typeof formatISTDate === 'function')
+                ? formatISTDate(new Date(record.date))
+                : new Date(record.date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: '2-digit' });
             
             const statusIcon = record.status === 'present' ? 
                 '<i class="fas fa-check-circle" style="color: #28a745;"></i>' : 
@@ -2217,7 +2297,7 @@ function exportToExcel() {
         csvContent += `Student Name,${studentName}\n`;
         csvContent += `Registration Number,${regNumber}\n`;
         csvContent += `Subject,${subject}\n`;
-        csvContent += `Generated Date,${new Date().toLocaleDateString()}\n\n`;
+        csvContent += `Generated Date,${(typeof formatISTDateTime === 'function') ? formatISTDateTime(new Date()) : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n\n`;
         csvContent += `Summary\n`;
         csvContent += `Total Classes Attended,${totalPresent}\n`;
         csvContent += `Total Classes Missed,${totalAbsent}\n`;
@@ -2662,12 +2742,16 @@ async function generateBatchAttendanceReport() {
             .where('subject', '==', subject)
             .get();
         
-        // Create a map of attendance records
+        // Create a map of attendance records with status, id, and photo availability
         const attendanceMap = new Map();
         attendanceQuery.forEach(doc => {
             const data = doc.data();
             if (data.userId) {
-                attendanceMap.set(data.userId, data.status);
+                attendanceMap.set(data.userId, {
+                    status: data.status,
+                    id: doc.id,
+                    hasPhoto: !!data.hasPhoto
+                });
             }
         });
         
@@ -2677,8 +2761,11 @@ async function generateBatchAttendanceReport() {
         let totalAbsent = 0;
         
         for (const student of batchStudents) {
-            // Get attendance status for the specific date
-            const dateStatus = attendanceMap.get(student.id) || 'absent';
+            // Get attendance status & photo info for the specific date
+            const dateEntry = attendanceMap.get(student.id) || { status: 'absent', id: null, hasPhoto: false };
+            const dateStatus = dateEntry.status;
+            const attendanceId = dateEntry.id;
+            const hasPhoto = !!dateEntry.hasPhoto;
             
             if (dateStatus === 'present') {
                 totalPresent++;
@@ -2710,7 +2797,9 @@ async function generateBatchAttendanceReport() {
                 name: student.name,
                 regNumber: student.regNumber,
                 dateStatus: dateStatus,
-                overallPercentage: overallPercentage
+                overallPercentage: overallPercentage,
+                attendanceId: attendanceId,
+                hasPhoto: hasPhoto
             });
         }
         
@@ -2766,7 +2855,7 @@ function displayBatchReport(reportData) {
     document.getElementById('batchReportSchoolName').textContent = school;
     document.getElementById('batchReportBatchName').textContent = batch;
     document.getElementById('batchReportSubjectName').textContent = subject;
-    document.getElementById('batchReportDateSelected').textContent = new Date(selectedDate).toLocaleDateString();
+    document.getElementById('batchReportDateSelected').textContent = (typeof formatISTDate === 'function') ? formatISTDate(new Date(selectedDate)) : new Date(selectedDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
     
     // Populate summary
     document.getElementById('batchTotalPresent').textContent = totalPresent;
@@ -2820,12 +2909,19 @@ function displayBatchReport(reportData) {
                 percentageClass = 'style="color: #dc3545; font-weight: 600;"'; // Red
             }
             
+            const photoCell = student.hasPhoto && student.attendanceId
+                ? `<button class="quick-action-btn" style="padding:6px 10px; border-radius:6px; font-size:12px;" onclick="viewAttendancePhoto('${student.attendanceId}')">
+                        <i class="fas fa-image"></i> View Photo
+                   </button>`
+                : `<span style="color:#999; font-size:12px;">No photo</span>`;
+            
             row.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${student.name}</td>
                 <td>${student.regNumber}</td>
                 <td>${statusIcon} ${student.dateStatus.charAt(0).toUpperCase() + student.dateStatus.slice(1)}</td>
                 <td ${percentageClass}>${student.overallPercentage}%</td>
+                <td>${photoCell}</td>
             `;
             
             batchStudentsTable.appendChild(row);

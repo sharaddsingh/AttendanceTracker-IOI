@@ -93,7 +93,7 @@
             <div id="qrForm" class="qr-form">
                 <div class="form-group">
                     <label for="qrSchool">School:</label>
-                    <select id="qrSchool" onchange="updateBatchOptions()" required>
+<select id="qrSchool" onchange="updateQRBatchOptions()" required>
                         <option value="">Select School</option>
                         <option value="School of Technology">School of Technology</option>
                         <option value="School of Management">School of Management</option>
@@ -575,15 +575,16 @@
                     <h4><i class="fas fa-list"></i> Student Attendance Details</h4>
                     <div class="table-container">
                         <table class="batch-attendance-table">
-                            <thead>
-                                <tr>
-                                    <th>S.No.</th>
-                                    <th>Student Name</th>
-                                    <th>Enrollment ID</th>
-                                    <th>Date Status</th>
-                                    <th>Overall Percentage</th>
-                                </tr>
-                            </thead>
+                                <thead>
+                                    <tr>
+                                        <th>S.No.</th>
+                                        <th>Student Name</th>
+                                        <th>Enrollment ID</th>
+                                        <th>Date Status</th>
+                                        <th>Overall Percentage</th>
+                                        <th>Photo</th>
+                                    </tr>
+                                </thead>
                             <tbody id="batchStudentsTable">
                                 <!-- Student records will be populated here -->
                             </tbody>
