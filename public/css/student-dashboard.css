@@ -27,7 +27,7 @@ Last Updated: 2024
 
 body {
   background: linear-gradient(135deg, var(--color-primary), #06283D);
-  color: var(--color-white);
+  color: var(--color-text);
   padding: 20px;
 }
 

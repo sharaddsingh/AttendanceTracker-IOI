@@ -916,11 +916,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // Set min date for leave date input to prevent past dates
   const leaveDateInput = document.getElementById('leaveDate');
   if (leaveDateInput) {
+    // Compute local date components to avoid UTC offset issues on iOS Safari
     const d = new Date();
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    leaveDateInput.min = `${yyyy}-${mm}-${dd}`;
+    const todayLocal = `${yyyy}-${mm}-${dd}`;
+    // Set both min and default value so iPhone doesn’t preselect yesterday
+    leaveDateInput.min = todayLocal;
+    if (!leaveDateInput.value) {
+      leaveDateInput.value = todayLocal;
+    }
   }
 
   const profileForm = document.getElementById('profileForm');
