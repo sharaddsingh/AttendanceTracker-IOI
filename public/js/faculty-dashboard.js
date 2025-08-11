@@ -1453,23 +1453,12 @@ async function submitManualAttendance() {
     const today = new Date().toISOString().split('T')[0];
     
     try {
-        console.log('Submitting manual attendance...');
+        console.log('Submitting manual attendance without daily limits...');
         
         const db = firebase.firestore();
 
-        // Reserve today's periods for this batch (transactional guard)
-        const dailyDocId = `${school.replace(/\s+/g,'_')}_${batchName}_${today}`;
-        const dailyRef = db.collection('dailySchedules').doc(dailyDocId);
-        await db.runTransaction(async (tx) => {
-            const snap = await tx.get(dailyRef);
-            const data = snap.exists ? snap.data() : { totalPeriods: 0, sessions: [], date: today, school, batch: batchName };
-            const newTotal = (Number(data.totalPeriods) || 0) + periods;
-            if (newTotal > 4) {
-                throw new Error(`Daily limit exceeded. Planned: ${data.totalPeriods || 0}, requested: ${periods}, max: 4`);
-            }
-            const newSessions = (data.sessions || []).concat([{ sessionId: `manual_${Date.now()}`, subject, periods, createdAt: new Date(), type: 'manual' }]);
-            tx.set(dailyRef, { ...data, totalPeriods: newTotal, sessions: newSessions, updatedAt: new Date() }, { merge: true });
-        });
+        // Proceed directly without daily limit checks
+        console.log('Manual attendance: No daily limit enforcement');
 
         const batchWrite = db.batch();
         
@@ -1586,11 +1575,40 @@ async function generateAttendanceReport() {
         return;
     }
     
+    console.log('🔍 Starting report generation for:', { regNumber, subject });
+    console.log('🔍 Current faculty info:', {
+        currentFaculty: currentFaculty ? { uid: currentFaculty.uid, email: currentFaculty.email } : null,
+        facultyProfile: facultyProfile ? { fullName: facultyProfile.fullName, subjects: facultyProfile.subjects } : null
+    });
+    
     try {
         // Show loading state
         showReportLoading(true);
         
         const db = firebase.firestore();
+        
+        // First, let's test basic Firestore connectivity and permissions
+        console.log('🔍 Testing basic Firestore permissions...');
+        
+        // Test if we can read from faculty collection (should be allowed for current user)
+        try {
+            const facultyTestQuery = await db.collection('faculty').doc(currentFaculty.uid).get();
+            console.log('✅ Faculty collection read test successful:', facultyTestQuery.exists);
+        } catch (testError) {
+            console.error('❌ Faculty collection read test failed:', testError);
+            showReportError(`Permission error: Cannot access faculty data. ${testError.message}`);
+            return;
+        }
+        
+        // Test if we can read from attendances collection
+        try {
+            const attendanceTestQuery = await db.collection('attendances').limit(1).get();
+            console.log('✅ Attendances collection read test successful, found', attendanceTestQuery.size, 'records');
+        } catch (testError) {
+            console.error('❌ Attendances collection read test failed:', testError);
+            showReportError(`Permission error: Cannot access attendance data. ${testError.message}`);
+            return;
+        }
         
         // First, find the student by registration number
         console.log('👤 Finding student with registration number:', regNumber);
