@@ -2664,6 +2664,43 @@ async function generateBatchAttendanceReport() {
         
         const db = firebase.firestore();
         
+        // === DEBUGGING: Check current user and faculty permissions ===
+        const currentUser = firebase.auth().currentUser;
+        console.log('🔍 BATCH REPORT DEBUG:');
+        console.log('Current User UID:', currentUser ? currentUser.uid : 'No user');
+        console.log('Current User Email:', currentUser ? currentUser.email : 'No email');
+        
+        // Test if current user exists in faculty collection
+        console.log('Testing faculty collection access...');
+        try {
+            const facultyDoc = await db.collection('faculty').doc(currentUser.uid).get();
+            console.log('Faculty doc exists:', facultyDoc.exists);
+            if (facultyDoc.exists) {
+                console.log('Faculty doc data:', facultyDoc.data());
+            } else {
+                console.log('❌ Faculty document NOT found - this is the permission issue!');
+            }
+        } catch (facultyError) {
+            console.log('❌ Error accessing faculty collection:', facultyError.message);
+        }
+        
+        // Test basic collection access
+        console.log('Testing basic collections access...');
+        try {
+            const testUsersQuery = await db.collection('users').limit(1).get();
+            console.log('✅ Users collection accessible, docs count:', testUsersQuery.docs.length);
+        } catch (usersError) {
+            console.log('❌ Users collection error:', usersError.message);
+        }
+        
+        try {
+            const testAttendanceQuery = await db.collection('attendances').limit(1).get();
+            console.log('✅ Attendances collection accessible, docs count:', testAttendanceQuery.docs.length);
+        } catch (attendanceError) {
+            console.log('❌ Attendances collection error:', attendanceError.message);
+        }
+        // === END DEBUGGING ===
+        
         // Get all students from the selected batch
         const allStudentsQuery = await db.collection('users')
             .where('role', '==', 'student')
