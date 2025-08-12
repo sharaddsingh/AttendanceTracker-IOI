@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Populate subjects checkboxes
     populateSubjectsCheckboxes();
     
+    // Set max date for batch report date input to current date
+    setMaxDateForBatchReport();
+    
     // Firebase auth listener
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
@@ -27,6 +30,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+/**
+ * Sets the maximum date for batch report date input to today's date
+ */
+function setMaxDateForBatchReport() {
+    const batchReportDateInput = document.getElementById('batchReportDate');
+    if (batchReportDateInput) {
+        // Get today's date in YYYY-MM-DD format (local timezone)
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+        
+        // Set max attribute to today's date
+        batchReportDateInput.setAttribute('max', todayStr);
+        console.log('✅ Set max date for batch report to:', todayStr);
+    }
+}
 
 // Check if QRCode library is loaded, if not try to load it dynamically
 function checkQRCodeLibrary() {
@@ -2654,6 +2676,17 @@ async function generateBatchAttendanceReport() {
     // Validation
     if (!school || !batch || !subject || !selectedDate) {
         alert('Please fill in all fields to generate batch report.');
+        return;
+    }
+    
+    // Check if the selected date is in the future
+    const today = new Date();
+    const selectedDateObj = new Date(selectedDate);
+    today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+    selectedDateObj.setHours(0, 0, 0, 0);
+    
+    if (selectedDateObj > today) {
+        alert('⚠️ Future dates are not allowed!\n\nPlease select today\'s date or a past date when attendance was actually taken.\n\n📅 You can only generate reports for dates when attendance sessions have occurred.');
         return;
     }
     
