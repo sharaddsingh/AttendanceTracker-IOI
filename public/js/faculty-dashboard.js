@@ -2773,11 +2773,14 @@ async function generateBatchAttendanceReport() {
             return;
         }
         
-        // Get attendance records for the selected date
+        // Get attendance records for the selected date and subject ONLY
+        console.log(`🔍 BATCH REPORT FILTERING: Fetching attendance for date=${selectedDate}, subject=${subject}`);
         const attendanceQuery = await db.collection('attendances')
             .where('date', '==', selectedDate)
             .where('subject', '==', subject)
             .get();
+        
+        console.log(`📊 Found ${attendanceQuery.docs.length} attendance records for ${subject} on ${selectedDate}`);
         
         // Create a map of attendance records with status, id, and photo availability
         const attendanceMap = new Map();
@@ -2792,17 +2795,87 @@ async function generateBatchAttendanceReport() {
             }
         });
         
-        // Calculate overall attendance percentages for each student
+        // Calculate overall attendance percentages for each student (ONLY for selected batch and subject)
+        console.log(`📋 BATCH REPORT: Processing ${batchStudents.length} students from ${school} ${batch} for subject ${subject}`);
+        
         const studentReportData = [];
         let totalPresent = 0;
         let totalAbsent = 0;
         
+        // First, check if ANY attendance was taken on this date for this subject
+        const dateHasAttendanceRecords = attendanceQuery.docs.length > 0;
+        console.log(`📅 ATTENDANCE CHECK: ${dateHasAttendanceRecords ? 'Attendance WAS taken' : 'NO attendance taken'} on ${selectedDate} for ${subject}`);
+        
+        if (!dateHasAttendanceRecords) {
+            // No attendance was taken on this date for this subject
+            console.log(`📋 BATCH REPORT: No attendance session found for ${subject} on ${selectedDate}`);
+            
+            // Show message that no attendance was taken
+            document.getElementById('reportLoading').style.display = 'none';
+            document.getElementById('batchReportDisplay').style.display = 'block';
+            
+            // Populate report header
+            document.getElementById('batchReportSchoolName').textContent = school;
+            document.getElementById('batchReportBatchName').textContent = batch;
+            document.getElementById('batchReportSubjectName').textContent = subject;
+            document.getElementById('batchReportDateSelected').textContent = (typeof formatISTDate === 'function') ? formatISTDate(new Date(selectedDate)) : new Date(selectedDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+            
+            // Set summary to show no attendance taken
+            document.getElementById('batchTotalPresent').textContent = '-';
+            document.getElementById('batchTotalAbsent').textContent = '-';
+            document.getElementById('batchTotalStudents').textContent = batchStudents.length;
+            document.getElementById('batchAttendancePercentage').textContent = 'N/A';
+            
+            // Update percentage bar
+            const batchPercentageBar = document.getElementById('batchPercentageBar');
+            if (batchPercentageBar) {
+                batchPercentageBar.style.width = '0%';
+                batchPercentageBar.style.backgroundColor = '#6c757d'; // Gray for N/A
+            }
+            
+            // Show message in students table
+            const batchStudentsTable = document.getElementById('batchStudentsTable');
+            batchStudentsTable.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #666; padding: 30px; background-color: #f8f9fa;">
+                        <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 10px; color: #007bff;"></i>
+                        <h4 style="margin: 10px 0; color: #333;">No Attendance Session Found</h4>
+                        <p style="margin: 5px 0;">No attendance was taken for <strong>${subject}</strong> on <strong>${(typeof formatISTDate === 'function') ? formatISTDate(new Date(selectedDate)) : new Date(selectedDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</strong></p>
+                        <p style="margin: 5px 0; font-size: 0.9rem; color: #666;">This means no faculty conducted an attendance session for this subject on this date.</p>
+                        <p style="margin: 15px 0; font-size: 0.9rem;">💡 <em>Select a different date when attendance was actually taken</em></p>
+                    </td>
+                </tr>
+            `;
+            
+            return; // Exit the function early
+        }
+        
+        // Attendance was taken on this date, proceed with normal report generation
+        console.log(`✅ PROCEEDING: Attendance session found, generating report for ${batchStudents.length} students`);
+        
         for (const student of batchStudents) {
+            // Validate student belongs to the selected batch and school
+            if (student.profileData.school !== school || student.profileData.batch !== batch) {
+                console.warn(`⚠️ FILTER VIOLATION: Student ${student.name} (${student.id}) doesn't match batch criteria`);
+                continue; // Skip this student as they don't match the batch
+            }
+            
             // Get attendance status & photo info for the specific date
-            const dateEntry = attendanceMap.get(student.id) || { status: 'absent', id: null, hasPhoto: false };
+            // Only use actual recorded attendance (don't default to absent)
+            const dateEntry = attendanceMap.get(student.id);
+            
+            // Skip students who don't have any attendance record for this date
+            // This means they weren't part of the attendance session
+            if (!dateEntry) {
+                console.log(`📋 SKIPPING: Student ${student.name} has no attendance record for ${selectedDate} (wasn't in attendance session)`);
+                continue;
+            }
+            
             const dateStatus = dateEntry.status;
             const attendanceId = dateEntry.id;
             const hasPhoto = !!dateEntry.hasPhoto;
+            
+            console.log(`👤 BATCH REPORT: Student ${student.name} - Date Status: ${dateStatus} for ${selectedDate}`);
             
             if (dateStatus === 'present') {
                 totalPresent++;
@@ -2810,11 +2883,14 @@ async function generateBatchAttendanceReport() {
                 totalAbsent++;
             }
             
-            // Calculate overall percentage for this subject
+            // Calculate overall percentage for ONLY this specific subject (no other subjects)
+            console.log(`📊 CALCULATING OVERALL: Fetching ALL attendance for student ${student.id} in subject ${subject} ONLY`);
             const overallQuery = await db.collection('attendances')
                 .where('userId', '==', student.id)
                 .where('subject', '==', subject)
                 .get();
+            
+            console.log(`📈 Found ${overallQuery.size} total attendance records for ${student.name} in ${subject}`);
             
             let totalClasses = 0;
             let presentClasses = 0;
