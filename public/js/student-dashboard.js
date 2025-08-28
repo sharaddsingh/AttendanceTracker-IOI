@@ -1926,21 +1926,30 @@ function closeQRScanner() {
 function onScanSuccess(decodedText, decodedResult) {
   console.log('QR Code scanned successfully:', decodedText);
   
-  try {
-    // Parse the QR code data
-    const qrData = JSON.parse(decodedText);
-    
-    // Validate QR code structure
-    if (!qrData.school || !qrData.batch || !qrData.subject || !qrData.periods || !qrData.timestamp || !qrData.expiry) {
-      throw new Error('Invalid QR code format');
-    }
-    
-    // Check if QR code has expired
-    const now = Date.now();
-    if (now > qrData.expiry) {
-      showNotification('QR Expired', 'This QR code has expired. Ask your faculty to generate a new one.');
-      return;
-    }
+    try {
+        // Parse the QR code data
+        const qrData = JSON.parse(decodedText);
+        
+        // Validate QR code structure
+        if (!qrData.school || !qrData.batch || !qrData.subject || !qrData.periods || !qrData.timestamp || !qrData.expiry) {
+            throw new Error('Invalid QR code format');
+        }
+        
+        // Fast QR Security validation (optimized for speed)
+        if (window.validateSecureQR && qrData.security) {
+            const validationResult = window.validateSecureQR(qrData);
+            if (!validationResult.valid) {
+                showNotification('Security Check Failed', validationResult.message);
+                return;
+            }
+        }
+        
+        // Check if QR code has expired (basic validation)
+        const now = Date.now();
+        if (now > qrData.expiry) {
+            showNotification('QR Expired', 'This QR code has expired. Ask your faculty to generate a new one.');
+            return;
+        }
     
     // Store scanned data in both variable and localStorage for backup
     currentScannedData = qrData;

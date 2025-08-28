@@ -461,6 +461,16 @@ function closeQRModal() {
         qrTimer = null;
     }
     
+    // Stop QR Security if available
+    if (window.stopQRSecurity) {
+        try {
+            window.stopQRSecurity();
+            console.log('🔓 QR Security stopped');
+        } catch (error) {
+            console.warn('Error stopping QR Security:', error);
+        }
+    }
+    
     console.log('QR Modal closed');
 }
 
@@ -551,7 +561,21 @@ function generateQRCode() {
         validFor: 30, // 30 seconds
         redirectUrl: window.location.origin + '/student-dashboard.html'
     };
-    console.log('Generated QR Data (no limits):', qrData);
+    console.log('Generated QR Data (original):', qrData);
+    
+    // Enhance with QR Security Phase 1 (if available)
+    let secureQRData = qrData;
+    if (window.enhanceQRWithSecurity) {
+        try {
+            secureQRData = window.enhanceQRWithSecurity(qrData);
+            console.log('🔒 QR Security Phase 1 enabled');
+        } catch (error) {
+            console.warn('QR Security enhancement failed, using original QR:', error);
+            secureQRData = qrData;
+        }
+    } else {
+        console.log('QR Security Phase 1 not available, using original QR');
+    }
     
     // Generate QR Code
     const qrCanvas = document.getElementById('qrCodeCanvas');
