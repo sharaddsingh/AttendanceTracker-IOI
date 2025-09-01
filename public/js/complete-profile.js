@@ -48,13 +48,19 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
+        // Generate and bind device ID
+        const deviceId = generateDeviceId();
+        console.log('📱 Binding device ID:', deviceId);
+        
         const profileData = {
             fullName: document.getElementById('fullName').value,
             regNumber: document.getElementById('regNumber').value,
             school: document.getElementById('school').value,
             batch: document.getElementById('batch').value,
             phone: document.getElementById('phone').value,
-            completedAt: new Date().toISOString()
+            completedAt: new Date().toISOString(),
+            deviceId: deviceId,
+            deviceBoundAt: new Date()
         };
         
         try {
@@ -64,10 +70,24 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.textContent = 'Saving...';
             submitBtn.disabled = true;
             
-            // Save to Firebase (optional)
+            // Save to Firebase
             const user = auth.currentUser;
             if (user) {
+                // Create user document with completed profile flag
+                await db.collection('users').doc(user.uid).set({
+                    email: user.email,
+                    role: 'student',
+                    createdAt: new Date(),
+                    profileCompleted: true,
+                    isNewSignup: false, // No longer new after profile completion
+                    deviceId: deviceId,
+                    deviceBoundAt: new Date()
+                });
+                
+                // Create profile document
                 await db.collection('profiles').doc(user.uid).set(profileData);
+                
+                console.log('✅ Student user document and profile created successfully');
             }
             
             // Save to localStorage

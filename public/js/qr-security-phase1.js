@@ -6,7 +6,6 @@ Author: Attendance Tracker System
 Description: Phase 1 anti-screenshot protection - maintains full compatibility
 Features:
 - Real-time QR refresh (3-5 seconds)
-- Device fingerprinting
 - Basic screenshot detection
 - Full backward compatibility with existing system
 ==================================================
@@ -17,7 +16,6 @@ class QRSecurityPhase1 {
         this.isEnabled = true;
         this.currentSession = null;
         this.refreshInterval = null;
-        this.deviceFingerprint = null;
         this.refreshRate = 4000; // 4 seconds - good balance between security and UX
         this.isActive = false;
         this.originalQRData = null; // Store original QR data
@@ -36,9 +34,6 @@ class QRSecurityPhase1 {
         console.log('🔒 Initializing QR Security Phase 1...');
         
         try {
-            // Generate device fingerprint
-            this.deviceFingerprint = await this.generateDeviceFingerprint();
-            
             // Setup screenshot detection (non-intrusive)
             this.setupScreenshotDetection();
             
@@ -49,48 +44,6 @@ class QRSecurityPhase1 {
         }
     }
 
-    /**
-     * Generate lightweight device fingerprint
-     */
-    async generateDeviceFingerprint() {
-        const fingerprint = {
-            timestamp: Date.now(),
-            userAgent: navigator.userAgent,
-            language: navigator.language,
-            platform: navigator.platform,
-            screenResolution: `${screen.width}x${screen.height}`,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            cookiesEnabled: navigator.cookieEnabled,
-            // Only include available properties to avoid errors
-            hardwareConcurrency: navigator.hardwareConcurrency || 1,
-            onLine: navigator.onLine
-        };
-
-        // Create a simple hash of the fingerprint
-        const fingerprintString = JSON.stringify(fingerprint);
-        const simpleHash = this.createSimpleHash(fingerprintString);
-        
-        console.log('🔐 Device fingerprint generated:', simpleHash.substring(0, 12) + '...');
-        
-        return {
-            raw: fingerprint,
-            hash: simpleHash,
-            generated: Date.now()
-        };
-    }
-
-    /**
-     * Create simple hash function (fallback if crypto not available)
-     */
-    createSimpleHash(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash; // Convert to 32-bit integer
-        }
-        return Math.abs(hash).toString(16);
-    }
 
     /**
      * Setup non-intrusive screenshot detection
@@ -146,7 +99,6 @@ class QRSecurityPhase1 {
             // Add security fields
             security: {
                 enabled: true,
-                deviceFingerprint: this.deviceFingerprint?.hash,
                 sessionId: this.generateSecureSessionId(),
                 refreshRate: this.refreshRate,
                 version: 'phase1'
@@ -330,8 +282,6 @@ class QRSecurityPhase1 {
             };
         }
 
-        // Skip device fingerprint check for Phase 1 speed optimization
-        // (can be re-enabled in Phase 2 if needed)
 
         return {
             valid: true,
@@ -418,7 +368,6 @@ class QRSecurityPhase1 {
         return {
             enabled: this.isEnabled,
             active: this.isActive,
-            deviceFingerprint: this.deviceFingerprint?.hash?.substring(0, 12) + '...',
             refreshRate: this.refreshRate,
             currentSession: this.currentSession?.security?.sessionId,
             refreshCount: this.currentSession?.refreshCount || 0

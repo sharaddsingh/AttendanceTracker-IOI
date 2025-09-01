@@ -367,15 +367,13 @@ form {
     }
    
   }
-
-
   </style>
 </head>
 
 <body>
 
   <div class="container wrapper">
-    <h2 id="formTitle">Sign Up</h2>
+    <h2 id="formTitle">Login to Attendance System</h2>
 
     <select id="roleSelect" class="select_role" required>
       <option value="" disabled selected>Select Role</option>
@@ -383,20 +381,11 @@ form {
       <option value="faculty" class="role2">Faculty</option>
     </select>
 
-   
-      <div class="input-field">
-        <input type="text" id="email"  required>
-        <label>Enter your email</label>
-      </div>
-        <div class="input-field">
-        <input type="password" id="password" required>
-        <label>Enter your password</label>
-      </div>
+    <p style="color: #666; font-size: 14px; margin: 15px 0; text-align: center;">
+      Please select your role and sign in with Google
+    </p>
 
-    <button id="submitBtn">Sign Up</button>
     <button id="googleBtn">Sign In with Google</button>
-    <div id="toggleLink">Already have an account? Login here</div>
-    <div id="forgotPasswordLink" style="display: none; cursor: pointer; text-decoration: underline; font-size: 12px; color: #666; margin-top: 5px;">Forgot Password?</div>
     <div id="message"></div>
   </div>
 
@@ -406,191 +395,36 @@ form {
   <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/common-utils.js"></script>
+  <script src="js/mobile-utils.js"></script>
 
 <script>
-  const emailInput = document.getElementById("email");
-  const passwordInput = document.getElementById("password");
   const roleSelect = document.getElementById("roleSelect");
-  const submitBtn = document.getElementById("submitBtn");
-  const toggleLink = document.getElementById("toggleLink");
   const googleBtn = document.getElementById("googleBtn");
-  const formTitle = document.getElementById("formTitle");
   const message = document.getElementById("message");
-  const forgotPasswordLink = document.getElementById("forgotPasswordLink");
-
-  let isSignup = true;
-
-  toggleLink.onclick = () => {
-    isSignup = !isSignup;
-    formTitle.textContent = isSignup ? "Sign Up" : "Login";
-    submitBtn.textContent = isSignup ? "Sign Up" : "Login";
-    toggleLink.textContent = isSignup ?
-      "Already have an account? Login here" :
-      "Don't have an account? Sign up here";
-    
-    // Show/hide forgot password link
-    forgotPasswordLink.style.display = isSignup ? "none" : "block";
-    
-    message.textContent = "";
-  };
-  // Forgot Password functionality
-  forgotPasswordLink.onclick = async () => {
-    const email = emailInput.value.trim();
-    const role = roleSelect.value;
-
-    if (!email) {
-      showModal('Email Required', 'Please enter your email address first.');
-      return;
-    }
-
-    if (!role) {
-      showModal('Role Required', 'Please select your role first.');
-      return;
-    }
-
-    // Validate email format based on role
-    const studentRegex = /@pwioi\.com$/i;
-    // const facultyRegex = /@pw\.live$/i;
-    
-    const facultyRegex = /@gmail\.com$/i;
-    
-    const validStudent = studentRegex.test(email);
-    const validFaculty = facultyRegex.test(email);
-
-    if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
-      alert(`Only ${role === "student" ? "@pwioi.com" : "@gmail.com"} emails allowed for ${role}s.`);
-      return;
-    }
-
-    try {
-      await auth.sendPasswordResetEmail(email);
-      message.style.color = "green";
-      message.textContent = "Password reset email sent! Check your inbox and follow the instructions to reset your password.";
-    } catch (error) {
-      message.style.color = "red";
+  
+  // Handle redirect result when user returns from Google sign-in
+  auth.getRedirectResult().then(async (result) => {
+    if (result.user) {
+      console.log('User signed in via redirect:', result.user.email);
       
-      if (error.code === 'auth/user-not-found') {
-        message.textContent = "No account found with this email. Please check your email or sign up first.";
-      } else if (error.code === 'auth/invalid-email') {
-        message.textContent = "Invalid email address. Please check and try again.";
-      } else if (error.code === 'auth/too-many-requests') {
-        message.textContent = "Too many password reset attempts. Please wait before trying again.";
-      } else {
-        message.textContent = `Error: ${error.message}`;
+      // Get stored role from sessionStorage
+      const role = sessionStorage.getItem('selectedRole');
+      if (!role) {
+        console.error('No role found in sessionStorage after redirect');
+        return;
       }
+      
+      // Clear the stored role
+      sessionStorage.removeItem('selectedRole');
+      
+      // Process the sign-in result
+      await processSignInResult(result, role);
     }
-  };
-
-submitBtn.onclick = async () => {
-    const email = emailInput.value.trim();
-    const password = passwordInput.value.trim();
-    const role = roleSelect.value;
-
-    if (!role) return alert("Please select your role first");
-
-    const studentRegex = /@pwioi\.com$/i;
-    // const facultyRegex = /@pw\.live$/i;
-    const facultyRegex = /@gmail\.com$/i;
-    const validStudent = studentRegex.test(email);
-    const validFaculty = facultyRegex.test(email);
-
-    if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
-      alert(`Only ${role === "student" ? "@pwioi.com" : "@gmail.com"} emails allowed for ${role}s.`);
-      return;
-    }
-
-    try {
-      if (isSignup) {
-        try {
-          const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-          const user = userCredential.user;
-
-          await db.collection("users").doc(user.uid).set({
-            email,
-            role,
-            createdAt: new Date(),
-            isNewSignup: true  // Flag to identify new signups
-          });
-
-          await user.sendEmailVerification();
-          message.style.color = "green";
-          message.textContent = "Account created successfully! Please check your email and verify your account, then login to continue.";
-
-          await auth.signOut();
-          
-          // Switch to login mode after successful signup
-          setTimeout(() => {
-            isSignup = false;
-            formTitle.textContent = "Login";
-            submitBtn.textContent = "Login";
-            toggleLink.textContent = "Don't have an account? Sign up here";
-            forgotPasswordLink.style.display = "block";
-            message.textContent = "";
-          }, 3000);
-        } catch (signupError) {
-          if (signupError.code === 'auth/email-already-in-use') {
-            message.textContent = "Email already in use with Google. Please log in instead.";
-          } else {
-            message.style.color = "red";
-            message.textContent = signupError.message;
-          }
-        }
-      } else {
-        try {
-          const userCredential = await auth.signInWithEmailAndPassword(email, password);
-          const user = userCredential.user;
-
-          if (!user.emailVerified) {
-            await user.sendEmailVerification();
-            await auth.signOut();
-            message.textContent = "Please verify your email. Verification sent again.";
-            return;
-          }
-
-          const doc = await db.collection("users").doc(user.uid).get();
-          const data = doc.data();
-          if (!doc.exists || data.role !== role) {
-            await auth.signOut();
-            return alert("Access denied for this role.");
-          }
-
-          // Check if this is a new signup that needs profile completion
-          if (data.isNewSignup && role === "student") {
-            // Mark as no longer new signup after first login
-            await db.collection("users").doc(user.uid).update({
-              isNewSignup: false
-            });
-            // Redirect new signups to profile completion
-            console.log('New signup detected, redirecting to complete-profile.html');
-            window.location.href = "complete-profile.html";
-          } else {
-            // Existing user, redirect directly to dashboard
-            console.log('Existing user login, redirecting to dashboard:', role);
-            redirectToDashboard(role);
-          }
-        } catch (loginError) {
-          if (loginError.code === 'auth/wrong-password') {
-            message.style.color = "red";
-            message.textContent = "Incorrect password. Please try again or use 'Forgot Password' to reset it.";
-          } else if (loginError.code === 'auth/user-not-found') {
-            message.style.color = "red";
-            message.textContent = "No account found with this email. Please check your email or sign up first.";
-          } else if (loginError.code === 'auth/invalid-credential') {
-            message.style.color = "red";
-            message.textContent = "Invalid login credentials. This account may have been created with Google sign-in only. Try using Google sign-in or use 'Forgot Password' to set up email login.";
-          } else if (loginError.code === 'auth/too-many-requests') {
-            message.style.color = "red";
-            message.textContent = "Too many failed login attempts. Please wait a moment before trying again.";
-          } else {
-            message.style.color = "red";
-            message.textContent = loginError.message;
-          }
-        }
-      }
-    } catch (error) {
-      showModal('An error occurred', error.message);
-    }
-  }
+  }).catch((error) => {
+    console.error('Redirect result error:', error);
+    message.style.color = "red";
+    message.textContent = "Sign-in failed. Please try again.";
+  });
 
   // Utility function to show modal messages
   function showModal(title, message) {
@@ -609,6 +443,7 @@ submitBtn.onclick = async () => {
     modal.style.display = 'block';
   }
 
+
   function redirectToDashboard(role) {
     console.log('redirectToDashboard called with role:', role);
     if (role === "student") {
@@ -621,86 +456,147 @@ submitBtn.onclick = async () => {
       console.error("Invalid role:", role);
     }
   }
+  
+  // Process sign-in result (used for both popup and redirect)
+  async function processSignInResult(result, role) {
+    const user = result.user;
+    const email = user.email;
 
-  googleBtn.onclick = async () => {
-    const role = roleSelect.value;
-    if (!role) return alert("Please select your role first");
+    const studentRegex = /@pwioi\.com$/i;
+    const facultyRegex = /@gmail\.com$/i;
+    const validStudent = studentRegex.test(email);
+    const validFaculty = facultyRegex.test(email);
 
-    const provider = new firebase.auth.GoogleAuthProvider();
+    if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
+      alert(`Only ${role === "student" ? "@pwioi.com" : "@gmail.com"} emails allowed for ${role}s.`);
+      await auth.signOut();
+      return;
+    }
 
-    try {
-      const result = await auth.signInWithPopup(provider);
-      const user = result.user;
-      const email = user.email;
+    // Mobile check for students only
+    if (role === "student" && !isMobileDevice()) {
+      showModal('Mobile Device Required', 'Students can only access the attendance system from mobile devices. Please use your mobile phone or tablet.');
+      await auth.signOut();
+      return;
+    }
 
-      const studentRegex = /@pwioi\.com$/i;
-      const facultyRegex = /@pw\.live$/i;
-      const validStudent = studentRegex.test(email);
-      const validFaculty = facultyRegex.test(email);
-
-      if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
-        alert(`Only ${role === "student" ? "@pwioi.com" : "@pw.live"} emails allowed for ${role}s.`);
-        await auth.signOut();
-        return;
-      }
-
+    // Handle different logic for students vs faculty
+    if (role === "faculty") {
+      // Faculty: Create/check user document immediately
       const docRef = db.collection("users").doc(user.uid);
       const docSnap = await docRef.get();
-      let isNewUser = false;
-
+      
       if (!docSnap.exists) {
-        isNewUser = true;
+        // New faculty - create user document
         await docRef.set({
           email,
           role,
           createdAt: new Date(),
-          isNewSignup: true  // Flag for new Google signups
+          isNewSignup: true
         });
       } else if (docSnap.data().role !== role) {
         alert("Access denied: Role mismatch.");
         await auth.signOut();
         return;
       }
-
-      // 🔐 Check if password login is linked
-      const hasPassword = user.providerData.some(p => p.providerId === "password");
-
-      if (!hasPassword) {
-        const setPass = confirm("Do you want to set a password for future email login?");
-        if (setPass) {
-          const newPassword = prompt("Enter a new password (min 6 characters):");
-          if (newPassword && newPassword.length >= 6) {
-            const credential = firebase.auth.EmailAuthProvider.credential(email, newPassword);
-            try {
-              await user.linkWithCredential(credential);
-              alert("Password set successfully. You can now log in with email and password.");
-            } catch (err) {
-              console.error("Linking failed:", err);
-              alert("Linking failed. Try again later.");
-            }
-          } else {
-            alert("Password must be at least 6 characters.");
-          }
+    } else {
+      // Students: Only check if they already have a completed profile
+      const docRef = db.collection("users").doc(user.uid);
+      const docSnap = await docRef.get();
+      
+      if (docSnap.exists) {
+        // Student exists - check role match
+        if (docSnap.data().role !== role) {
+          alert("Access denied: Role mismatch.");
+          await auth.signOut();
+          return;
+        }
+        
+        // Check if they have completed profile
+        const profileRef = db.collection("profiles").doc(user.uid);
+        const profileSnap = await profileRef.get();
+        
+        if (!profileSnap.exists) {
+          // User exists but no profile - redirect to complete profile
+          console.log('Student user exists but no profile found, redirecting to complete-profile.html');
+          window.location.href = "complete-profile.html";
+          return;
+        }
+        
+        // Check device binding for existing students
+        const userData = docSnap.data();
+        if (userData.deviceId && !isCurrentDevice(userData.deviceId)) {
+          showModal('Device Not Recognized', 'This account is bound to a different device. Please use your registered mobile device to access the attendance system.');
+          await auth.signOut();
+          return;
         }
       }
+      // If student doesn't exist at all, they'll be directed to profile completion below
+    }
 
-      // Check if this is a new Google signup that needs profile completion
-      if (isNewUser && role === "student") {
-        // Mark as no longer new signup after first login
-        await db.collection("users").doc(user.uid).update({
-          isNewSignup: false
-        });
-        // Redirect new Google signups to profile completion
-        console.log('New Google signup detected, redirecting to complete-profile.html');
+    // Final redirection logic
+    if (role === "student") {
+      // Check if student has completed profile
+      const docRef = db.collection("users").doc(user.uid);
+      const docSnap = await docRef.get();
+      
+      if (!docSnap.exists) {
+        // New student - redirect to profile completion
+        console.log('New student login detected, redirecting to complete-profile.html');
         window.location.href = "complete-profile.html";
       } else {
-        // Existing user, redirect directly to dashboard
-        console.log('Existing user Google sign-in, redirecting to dashboard:', role);
+        // Existing student - redirect to dashboard
+        console.log('Existing student login, redirecting to dashboard');
         redirectToDashboard(role);
       }
+    } else {
+      // Faculty - redirect to dashboard
+      console.log('Faculty login, redirecting to dashboard');
+      redirectToDashboard(role);
+    }
+  }
+
+  googleBtn.onclick = async () => {
+    const role = roleSelect.value;
+    if (!role) return alert("Please select your role first");
+
+    const provider = new firebase.auth.GoogleAuthProvider();
+    
+    // Set custom parameters for better mobile compatibility
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+
+    try {
+      message.style.color = "blue";
+      message.textContent = "Signing in...";
+      
+      const result = await auth.signInWithPopup(provider);
+      await processSignInResult(result, role);
     } catch (error) {
-      message.style.color = "red";
-      message.textContent = error.message;
+      console.error('Authentication error:', error);
+      
+      // Handle popup blocked error
+      if (error.code === 'auth/popup-blocked') {
+        message.style.color = "orange";
+        message.textContent = "Popup was blocked. Trying alternative method...";
+        
+        // Try redirect method as fallback
+        try {
+          // Store the selected role for after redirect
+          sessionStorage.setItem('selectedRole', role);
+          await auth.signInWithRedirect(provider);
+        } catch (redirectError) {
+          message.style.color = "red";
+          message.textContent = "Please allow popups for this site or try refreshing the page.";
+        }
+      } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
+        message.style.color = "gray";
+        message.textContent = "Sign-in was cancelled. Please try again.";
+      } else {
+        message.style.color = "red";
+        message.textContent = error.message || "Sign-in failed. Please try again.";
+      }
     }
   };
 </script>

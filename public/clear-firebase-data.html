@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Firebase Data</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .section {
+            margin: 25px 0;
+            padding: 20px;
+            border-left: 4px solid #2196f3;
+            background: #f8f9fa;
+            border-radius: 0 10px 10px 0;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 0 5px 5px 0;
+        }
+        button {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+        }
+        .success {
+            color: #4caf50;
+            font-weight: bold;
+            padding: 10px;
+            background: #e8f5e8;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+            padding: 10px;
+            background: #fdeaea;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .steps {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        .firebase-link {
+            display: inline-block;
+            background: #ff9800;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            margin: 10px 0;
+            transition: all 0.3s ease;
+        }
+        .firebase-link:hover {
+            background: #f57c00;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ Clear Firebase Data</h1>
+        
+        <div class="warning">
+            ⚠️ <strong>IMPORTANT:</strong> This will permanently delete all user accounts, profiles, and device bindings!
+        </div>
+
+        <div class="section">
+            <h3>🔥 Step 1: Clear Firebase Authentication</h3>
+            <p>Remove all user accounts from Firebase Authentication:</p>
+            <button onclick="signOutCurrentUser()">1. Sign Out Current User</button>
+            <div id="authStatus"></div>
+            
+            <div class="steps">
+                <strong>Manual Steps in Firebase Console:</strong>
+                <ol>
+                    <li>Go to <a href="https://console.firebase.google.com/" target="_blank" class="firebase-link">Firebase Console</a></li>
+                    <li>Select your project</li>
+                    <li>Go to <strong>Authentication</strong> → <strong>Users</strong></li>
+                    <li>Select all users (checkbox at top)</li>
+                    <li>Click <strong>Delete</strong> button</li>
+                    <li>Confirm deletion</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>📄 Step 2: Clear Firestore Collections</h3>
+            <p>Remove all documents from users and profiles collections:</p>
+            
+            <div class="steps">
+                <strong>Clear Collections in Firebase Console:</strong>
+                <ol>
+                    <li>Go to <strong>Firestore Database</strong></li>
+                    <li><strong>Users Collection:</strong>
+                        <ul>
+                            <li>Click on "users" collection</li>
+                            <li>Select all documents</li>
+                            <li>Click Delete</li>
+                        </ul>
+                    </li>
+                    <li><strong>Profiles Collection:</strong>
+                        <ul>
+                            <li>Click on "profiles" collection</li>
+                            <li>Select all documents</li>
+                            <li>Click Delete</li>
+                        </ul>
+                    </li>
+                    <li><strong>Any other collections</strong> you want to clear</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>💾 Step 3: Clear Browser Data</h3>
+            <p>Clear local browser storage and cache:</p>
+            <button onclick="clearLocalData()">Clear Local Storage</button>
+            <button onclick="clearSessionData()">Clear Session Storage</button>
+            <div id="localStatus"></div>
+            
+            <div class="steps">
+                <strong>Clear Browser Cache:</strong>
+                <ol>
+                    <li>Press <code>Ctrl+Shift+Delete</code> (Windows) or <code>Cmd+Shift+Delete</code> (Mac)</li>
+                    <li>Select <strong>All time</strong></li>
+                    <li>Check: Cookies, Cached images and files, Site data</li>
+                    <li>Click <strong>Clear data</strong></li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🔄 Step 4: Complete Reset</h3>
+            <p>After clearing Firebase data, perform complete local reset:</p>
+            <button onclick="completeReset()" style="background: linear-gradient(45deg, #4caf50, #45a049); font-size: 16px; padding: 15px 30px;">
+                🚀 Complete Reset & Go to Login
+            </button>
+            <div id="resetStatus"></div>
+        </div>
+
+        <div class="section" style="background: #f0f8ff; border-left-color: #1976d2;">
+            <h3>📝 Verification Checklist</h3>
+            <p>After completing all steps, verify:</p>
+            <ul style="line-height: 1.8;">
+                <li>✅ No users in Firebase Authentication</li>
+                <li>✅ No documents in "users" collection</li>
+                <li>✅ No documents in "profiles" collection</li>
+                <li>✅ Browser cache cleared</li>
+                <li>✅ Local storage cleared</li>
+                <li>✅ Ready for fresh testing</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+
+    <script>
+        function signOutCurrentUser() {
+            const authStatus = document.getElementById('authStatus');
+            
+            if (auth.currentUser) {
+                auth.signOut().then(() => {
+                    authStatus.innerHTML = '<div class="success">✅ Successfully signed out from Firebase</div>';
+                    console.log('User signed out successfully');
+                }).catch((error) => {
+                    authStatus.innerHTML = '<div class="error">❌ Sign out error: ' + error.message + '</div>';
+                    console.error('Sign out error:', error);
+                });
+            } else {
+                authStatus.innerHTML = '<div class="success">✅ No user currently signed in</div>';
+            }
+        }
+
+        function clearLocalData() {
+            const localStatus = document.getElementById('localStatus');
+            
+            try {
+                const localItems = Object.keys(localStorage);
+                const sessionItems = Object.keys(sessionStorage);
+                
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                localStatus.innerHTML = `<div class="success">✅ Browser data cleared<br>
+                    • Local Storage: ${localItems.length} items removed<br>
+                    • Session Storage: ${sessionItems.length} items removed</div>`;
+                
+                console.log('Local storage cleared:', localItems);
+                console.log('Session storage cleared:', sessionItems);
+            } catch (error) {
+                localStatus.innerHTML = '<div class="error">❌ Error clearing local data: ' + error.message + '</div>';
+            }
+        }
+
+        function clearSessionData() {
+            try {
+                const items = Object.keys(sessionStorage);
+                sessionStorage.clear();
+                
+                const status = document.getElementById('localStatus');
+                status.innerHTML = `<div class="success">✅ Session storage cleared (${items.length} items)</div>`;
+            } catch (error) {
+                console.error('Session clear error:', error);
+            }
+        }
+
+        function completeReset() {
+            const resetStatus = document.getElementById('resetStatus');
+            resetStatus.innerHTML = '<div style="color: #ff9800; background: #fff3cd; padding: 10px; border-radius: 5px;">🔄 Performing complete reset...</div>';
+            
+            Promise.all([
+                // Sign out if authenticated
+                auth.currentUser ? auth.signOut() : Promise.resolve(),
+                // Clear all storage
+                Promise.resolve(localStorage.clear()),
+                Promise.resolve(sessionStorage.clear())
+            ]).then(() => {
+                resetStatus.innerHTML = '<div class="success">✅ Complete reset successful!<br>🔄 Redirecting to login page...</div>';
+                
+                console.log('Complete reset successful');
+                
+                // Redirect to login after 3 seconds
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 3000);
+            }).catch((error) => {
+                resetStatus.innerHTML = '<div class="error">❌ Reset error: ' + error.message + '</div>';
+                console.error('Reset error:', error);
+            });
+        }
+
+        // Show current authentication state
+        auth.onAuthStateChanged(user => {
+            const authStatus = document.getElementById('authStatus');
+            if (user) {
+                authStatus.innerHTML = `<div style="color: #ff9800; background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                    ⚠️ Currently signed in as: <strong>${user.email}</strong><br>
+                    <small>Click "Sign Out Current User" to clear authentication</small>
+                </div>`;
+            }
+        });
+
+        // Show page load info
+        console.log('🔥 Firebase Data Clearing Utility Loaded');
+        console.log('📱 Mobile utilities available:', typeof window.isMobileDevice !== 'undefined');
+    </script>
+</body>
+</html>

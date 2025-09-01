@@ -1321,13 +1321,6 @@ async function loadStudentsList() {
                     <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i>
                     <p>No students found for ${school} - ${batch}</p>
                     <p style="font-size: 0.9rem; color: #999; margin-top: 10px;">Students may need to complete their profiles</p>
-                    <details style="margin-top: 15px; text-align: left; background: #f8f9fa; padding: 10px; border-radius: 5px;">
-                        <summary style="cursor: pointer; font-weight: bold;">Debug Info</summary>
-                        <p>Total students in database: ${allStudentsQuery.size}</p>
-                        <p>Students with role 'student': 4</p>
-                        <p>Students with profiles: 0</p>
-                        <p>Check console for detailed logs</p>
-                    </details>
                 </div>
             `;
             updateAttendanceSummary();
