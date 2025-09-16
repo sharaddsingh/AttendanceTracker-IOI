@@ -61,7 +61,6 @@ function generateDeviceId() {
  */
 function isCurrentDevice(storedDeviceId) {
     if (!storedDeviceId) {
-        console.log('📱 No stored device ID found');
         return false;
     }
     
@@ -86,21 +85,6 @@ function isCurrentDevice(storedDeviceId) {
     
     const matches = storedHash === currentHash;
     
-    console.log('📱 Device ID comparison:');
-    console.log('  Stored:', storedDeviceId);
-    console.log('  Current:', currentDeviceId);
-    console.log('  Stored Hash:', storedHash);
-    console.log('  Current Hash:', currentHash);
-    console.log('  Match:', matches);
-    console.log('  Browser:', navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Safari') ? 'Safari' : 'Other');
-    console.log('  Device fingerprint components:', {
-        language: navigator.language,
-        platform: navigator.platform,
-        screenResolution: `${screen.width}x${screen.height}`,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        hardwareConcurrency: navigator.hardwareConcurrency || 'unknown',
-        deviceMemory: navigator.deviceMemory || 'unknown'
-    });
     
     return matches;
 }
@@ -110,4 +94,3 @@ window.isMobileDevice = isMobileDevice;
 window.generateDeviceId = generateDeviceId;
 window.isCurrentDevice = isCurrentDevice;
 
-console.log('📱 Mobile utilities loaded');

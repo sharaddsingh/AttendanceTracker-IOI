@@ -94,6 +94,31 @@ service cloud.firestore {
       allow read, write: if isFaculty();
     }
     
+    // Temporary photo verification collection - for QR session photos
+    match /tempPhotos/{photoId} {
+      // Students can create their own temp photos during QR sessions
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == request.resource.data.studentId;
+      
+      // Faculty can read temp photos for their QR sessions
+      allow read: if isFaculty();
+      
+      // Faculty can update temp photos (approve/reject)
+      allow update: if isFaculty();
+      
+      // Allow deletion after processing
+      allow delete: if isFaculty();
+    }
+    
+    // QR Sessions collection - for tracking active QR sessions
+    match /qrSessions/{sessionId} {
+      // Faculty can create and manage QR sessions
+      allow read, write: if isFaculty();
+      
+      // Students can read active sessions to validate QR codes
+      allow read: if isAuthenticated();
+    }
+    
     // Test collection - for debugging
     match /test/{docId} {
       allow read, write: if isAuthenticated();

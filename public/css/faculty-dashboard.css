@@ -2380,6 +2380,17 @@ label {
     padding: 20px;
 }
 
+.batch-students-list .table-container {
+    background: white;
+    border-radius: 8px;
+    overflow-x: auto;
+    overflow-y: visible;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+    margin-top: 10px;
+    -webkit-overflow-scrolling: touch;
+}
+
 .batch-students-list h4 {
     margin-bottom: 15px;
     color: var(--primary-color);
@@ -2398,23 +2409,99 @@ label {
 
 .batch-attendance-table th,
 .batch-attendance-table td {
-    padding: 12px 15px;
+    padding: 14px 12px;
     text-align: left;
     border-bottom: 1px solid #e9ecef;
     font-size: 0.9rem;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* Specific column alignments and widths for 7-column layout */
+/* S.No. */
+.batch-attendance-table th:nth-child(1),
+.batch-attendance-table td:nth-child(1) {
+    text-align: center;
+    width: 60px;
+    padding: 14px 8px;
+    font-weight: 600;
+}
+
+/* Student Name */
+.batch-attendance-table th:nth-child(2),
+.batch-attendance-table td:nth-child(2) {
+    text-align: left;
+    min-width: 180px;
+    padding: 14px 16px;
+}
+
+/* Enrollment ID */
+.batch-attendance-table th:nth-child(3),
+.batch-attendance-table td:nth-child(3) {
+    text-align: center;
+    width: 130px;
+    padding: 14px 10px;
+}
+
+/* Total Classes Today */
+.batch-attendance-table th:nth-child(4),
+.batch-attendance-table td:nth-child(4) {
+    text-align: center;
+    width: 120px;
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+/* Classes Attended Today */
+.batch-attendance-table th:nth-child(5),
+.batch-attendance-table td:nth-child(5) {
+    text-align: center;
+    width: 130px;
+    font-weight: 600;
+}
+
+/* Subject Percentage */
+.batch-attendance-table th:nth-child(6),
+.batch-attendance-table td:nth-child(6) {
+    text-align: center;
+    width: 140px;
+    font-weight: 600;
+}
+
+/* Overall Percentage */
+.batch-attendance-table th:nth-child(7),
+.batch-attendance-table td:nth-child(7) {
+    text-align: center;
+    width: 140px;
+    font-weight: 600;
 }
 
 .batch-attendance-table th {
-    background: #f8f9fa;
-    font-weight: 600;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    font-weight: 700;
     color: var(--text-color);
     position: sticky;
     top: 0;
     z-index: 1;
+    border-bottom: 2px solid #dee2e6;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.batch-attendance-table tbody tr:nth-child(even) {
+    background: #fbfbfb;
 }
 
 .batch-attendance-table tbody tr:hover {
-    background: #f8f9fa;
+    background: #e3f2fd !important;
+    transform: scale(1.01);
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.batch-attendance-table tbody tr {
+    transition: all 0.2s ease;
 }
 
 .batch-report-actions {
@@ -2448,8 +2535,33 @@ label {
     
     .batch-attendance-table th,
     .batch-attendance-table td {
-        padding: 8px 12px;
+        padding: 10px 8px;
         font-size: 0.8rem;
+        white-space: nowrap;
+    }
+    
+    /* Adjust column widths for mobile */
+    .batch-attendance-table th:nth-child(2),
+    .batch-attendance-table td:nth-child(2) {
+        min-width: 140px;
+        padding: 10px 12px;
+    }
+    
+    .batch-attendance-table th:nth-child(3),
+    .batch-attendance-table td:nth-child(3) {
+        width: 100px;
+    }
+    
+    .batch-attendance-table th:nth-child(4),
+    .batch-attendance-table td:nth-child(4),
+    .batch-attendance-table th:nth-child(5),
+    .batch-attendance-table td:nth-child(5),
+    .batch-attendance-table th:nth-child(6),
+    .batch-attendance-table td:nth-child(6),
+    .batch-attendance-table th:nth-child(7),
+    .batch-attendance-table td:nth-child(7) {
+        width: 90px;
+        padding: 10px 6px;
     }
     
     .batch-report-actions {
@@ -2484,10 +2596,41 @@ label {
     
     .batch-attendance-table th,
     .batch-attendance-table td {
-        padding: 6px 8px;
-        font-size: 0.75rem;
+        padding: 8px 4px;
+        font-size: 0.7rem;
         white-space: nowrap;
-        min-width: 80px;
+        min-width: 70px;
+    }
+    
+    /* More compact layout for very small screens */
+    .batch-attendance-table th:nth-child(1),
+    .batch-attendance-table td:nth-child(1) {
+        width: 40px;
+        padding: 8px 2px;
+    }
+    
+    .batch-attendance-table th:nth-child(2),
+    .batch-attendance-table td:nth-child(2) {
+        min-width: 120px;
+        padding: 8px 6px;
+    }
+    
+    .batch-attendance-table th:nth-child(3),
+    .batch-attendance-table td:nth-child(3) {
+        width: 80px;
+    }
+    
+    .batch-attendance-table th:nth-child(4),
+    .batch-attendance-table td:nth-child(4),
+    .batch-attendance-table th:nth-child(5),
+    .batch-attendance-table td:nth-child(5),
+    .batch-attendance-table th:nth-child(6),
+    .batch-attendance-table td:nth-child(6),
+    .batch-attendance-table th:nth-child(7),
+    .batch-attendance-table td:nth-child(7) {
+        width: 70px;
+        padding: 8px 3px;
+        font-size: 0.65rem;
     }
     
     .batch-report-actions {

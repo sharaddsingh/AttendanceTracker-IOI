@@ -83,6 +83,60 @@
         </div>
     </div>
 
+    <!-- Photo Verification Modal -->
+    <div id="photoVerificationModal" class="qr-modal" style="display: none;">
+        <div class="qr-modal-content" style="max-width: 90%; max-height: 90%; width: 1200px;">
+            <div class="qr-modal-header">
+                <h3><i class="fas fa-camera-retro"></i> Student Photo Verification</h3>
+                <span class="qr-close" onclick="closePhotoVerificationModal()">&times;</span>
+            </div>
+            
+            <div class="verification-content">
+                <div class="session-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+                        <div><strong>School:</strong> <span id="verificationSchool">-</span></div>
+                        <div><strong>Batch:</strong> <span id="verificationBatch">-</span></div>
+                        <div><strong>Subject:</strong> <span id="verificationSubject">-</span></div>
+                        <div><strong>Periods:</strong> <span id="verificationPeriods">-</span></div>
+                    </div>
+                </div>
+                
+                <div class="photos-grid-container" style="max-height: 400px; overflow-y: auto;">
+                    <div id="photosGrid" class="photos-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; padding: 10px;">
+                        <!-- Photo cards will be populated here -->
+                    </div>
+                </div>
+                
+                <div id="noPhotosMessage" style="text-align: center; padding: 40px; color: #666; display: none;">
+                    <i class="fas fa-camera-retro" style="font-size: 48px; margin-bottom: 15px; opacity: 0.3;"></i>
+                    <h4>No Photos Submitted</h4>
+                    <p>No students have submitted photos for verification yet.</p>
+                </div>
+                
+                <div class="verification-actions" style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                    <button onclick="saveAttendance()" class="save-attendance-btn" style="background: #007bff; color: white; padding: 15px 30px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(0,123,255,0.3);">
+                        <i class="fas fa-save"></i> Save Attendance
+                    </button>
+                    <button onclick="closePhotoVerificationModal()" class="cancel-btn" style="background: #6c757d; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+                
+                <div id="verificationSummary" style="margin-top: 15px; padding: 10px; background: #e9ecef; border-radius: 6px; font-size: 14px; display: none;">
+                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                        <span><strong>Total Students:</strong> <span id="totalPhotos">0</span></span>
+                        <span style="color: #28a745;"><strong>Present:</strong> <span id="presentCount">0</span></span>
+                        <span style="color: #dc3545;"><strong>Absent:</strong> <span id="absentCount">0</span></span>
+                        <span style="color: #ffc107;"><strong>Not Reviewed:</strong> <span id="pendingCount">0</span></span>
+                    </div>
+                    <div style="text-align: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 13px; color: #666;">
+                        Click on student photos to toggle Present/Absent status
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- QR Generation Modal -->
     <div id="qrModal" class="qr-modal" style="display: none;">
         <div class="qr-modal-content">
@@ -585,9 +639,10 @@
                                         <th>S.No.</th>
                                         <th>Student Name</th>
                                         <th>Enrollment ID</th>
-                                        <th>Date Status</th>
+                                        <th>Total Classes Today</th>
+                                        <th>Classes Attended Today</th>
+                                        <th>Subject Percentage</th>
                                         <th>Overall Percentage</th>
-                                        <th>Photo</th>
                                     </tr>
                                 </thead>
                             <tbody id="batchStudentsTable">

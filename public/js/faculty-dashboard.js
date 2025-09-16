@@ -46,16 +46,12 @@ function setMaxDateForBatchReport() {
         
         // Set max attribute to today's date
         batchReportDateInput.setAttribute('max', todayStr);
-        console.log('✅ Set max date for batch report to:', todayStr);
     }
 }
 
 // Check if QRCode library is loaded, if not try to load it dynamically
 function checkQRCodeLibrary() {
-    console.log('Checking QRCode library...');
-    
     if (typeof QRCode !== 'undefined') {
-        console.log('✅ QRCode library is loaded');
         return;
     }
     
@@ -65,7 +61,6 @@ function checkQRCodeLibrary() {
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
     script.onload = () => {
-        console.log('✅ QRCode fallback library loaded successfully');
     };
     script.onerror = () => {
         console.error('❌ Failed to load QRCode fallback library');
@@ -518,7 +513,7 @@ function generateQRCode() {
     const batch = document.getElementById('qrBatch').value;
     const subject = document.getElementById('qrSubject').value;
     const periodsInput = document.getElementById('qrPeriods').value;
-    const periods = Math.min(4, Math.max(1, parseInt(periodsInput, 10) || 1));
+    const periods = Math.max(1, parseInt(periodsInput, 10) || 1);
     
     console.log('Form values:', { school, batch, subject, periods });
     
@@ -530,11 +525,13 @@ function generateQRCode() {
 
     const db = firebase.firestore();
     
-    // Create unique session ID
-    const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Create unique session ID with more detail for tracking
+    const now = new Date();
+    const timeString = now.toTimeString().substr(0, 5); // HH:MM format
+    const sessionId = `${subject}_${batch}_${now.getTime()}_${Math.random().toString(36).substr(2, 6)}`;
     
-    // Proceed directly without daily limit checks
-    console.log('Generating QR code without daily limit restrictions');
+    // Generate QR code with session tracking
+    console.log('Generating QR code for attendance session:', sessionId);
     // Hide form and show QR display
     document.getElementById('qrForm').style.display = 'none';
     const qrCodeDisplay = document.getElementById('qrCodeDisplay');
@@ -546,8 +543,8 @@ function generateQRCode() {
     document.getElementById('displaySubject').textContent = subject;
     document.getElementById('displayPeriods').textContent = periods;
     
-    // Build QR data
-    const now = Date.now();
+    // Build QR data with enhanced session tracking
+    const timestamp = Date.now();
     const qrData = {
         sessionId: sessionId,
         school: school,
@@ -556,9 +553,11 @@ function generateQRCode() {
         periods: parseInt(periods),
         facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
         facultyId: currentFaculty.uid,
-        timestamp: now,
-        expiry: now + (30 * 1000), // 30 seconds from now
+        timestamp: timestamp,
+        expiry: timestamp + (30 * 1000), // 30 seconds from now
         validFor: 30, // 30 seconds
+        classTime: timeString, // Time when class is happening
+        generatedAt: new Date().toISOString(),
         redirectUrl: window.location.origin + '/student-dashboard.html'
     };
     console.log('Generated QR Data (original):', qrData);
@@ -1486,18 +1485,47 @@ async function submitManualAttendance() {
     const batchName = document.getElementById('manualBatch').value;
     const subject = document.getElementById('manualSubject').value;
     const periodsRaw = parseInt(document.getElementById('manualPeriods').value);
-    const periods = Math.min(4, Math.max(1, periodsRaw || 1));
+    const periods = Math.max(1, periodsRaw || 1);
     
     // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
     
+    // Generate unique session ID for manual attendance
+    const now = new Date();
+    const timeString = now.toTimeString().substr(0, 5); // HH:MM format
+    const sessionId = `manual_${subject}_${batchName}_${now.getTime()}_${Math.random().toString(36).substr(2, 6)}`;
+    
     try {
-        console.log('Submitting manual attendance without daily limits...');
+        console.log('Submitting manual attendance for session:', sessionId);
         
         const db = firebase.firestore();
+        
+        // Check if attendance already exists for this session
+        console.log('Checking for existing attendance records...');
+        const existingQuery = await db.collection('attendances')
+            .where('date', '==', today)
+            .where('subject', '==', subject)
+            .where('batch', '==', batchName)
+            .where('markedBy', '==', currentFaculty.uid)
+            .where('method', '==', 'manual')
+            .get();
+            
+        if (!existingQuery.empty) {
+            const confirmOverride = confirm(
+                `Attendance for ${subject} (${batchName}) on ${today} already exists.\n\n` +
+                `This will create a new session instead of overriding.\n` +
+                `Continue to create new attendance session?`
+            );
+            
+            if (!confirmOverride) {
+                console.log('Manual attendance submission cancelled by user');
+                return;
+            }
+            console.log('Creating new attendance session as requested');
+        }
 
-        // Proceed directly without daily limit checks
-        console.log('Manual attendance: No daily limit enforcement');
+        // Process attendance records
+        console.log('Processing manual attendance submission');
 
         const batchWrite = db.batch();
         
@@ -1520,7 +1548,10 @@ async function submitManualAttendance() {
                 markedBy: currentFaculty.uid,
                 facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
                 method: 'manual',
-                hasPhoto: false // Manual attendance doesn't have photo verification
+                hasPhoto: false, // Manual attendance doesn't have photo verification
+                sessionId: sessionId, // Unique session identifier
+                classTime: timeString, // Time when attendance was taken
+                generatedAt: new Date().toISOString()
             };
             
             attendanceRecords.push(attendanceRecord);
@@ -1542,7 +1573,8 @@ async function submitManualAttendance() {
         showSuccessMessage(
             `Attendance submitted successfully!\n` +
             `Present: ${presentCount}, Absent: ${absentCount}\n` +
-            `Subject: ${subject} (${periods} period${periods > 1 ? 's' : ''})`
+            `Subject: ${subject} (${periods} period${periods > 1 ? 's' : ''})\n` +
+            `Session: ${timeString} - ${sessionId.substr(-6)}`
         );
         
         // Reset form
@@ -2394,229 +2426,58 @@ function handleRegNumberInput() {
 // ===== AUTO-ABSENT PROCESSING FUNCTIONS =====
 
 /**
- * Processes absent students after QR code expires
- * This function automatically marks students as absent if they didn't scan the QR code
+ * Opens photo verification modal automatically after QR code expires
+ * This function shows faculty all submitted photos for verification
  */
 async function processAbsentStudents() {
     if (!currentQRSession) {
-        console.log('No current QR session to process absent students');
+        console.log('No current QR session to process photos');
         return;
     }
 
-    console.log('🔄 Starting automatic absent processing for session:', currentQRSession);
+    console.log('📸 QR Code expired - Opening photo verification modal for session:', currentQRSession);
     
     const statusElement = document.getElementById('qrStatus');
     if (statusElement) {
-        statusElement.innerHTML = '<p>Processing absent students... Please wait.</p>';
+        statusElement.innerHTML = '<p>QR Code expired. Opening photo verification...</p>';
     }
 
-    try {
-        const db = firebase.firestore();
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Wait a moment for any final photo submissions
+    setTimeout(() => {
+        console.log('📸 Opening photo verification modal automatically');
+        console.log('Current QR Session:', currentQRSession);
+        console.log('Firebase user:', firebase.auth().currentUser?.uid);
         
-        // Find all students from the QR session's batch who haven't marked attendance today for this subject
-        console.log('🔍 Finding students who need to be marked absent...');
+        // Store current session for photo verification
+        currentVerificationSession = currentQRSession;
+        console.log('Set currentVerificationSession:', currentVerificationSession);
         
-        // First, get all students from the same school and batch
-        const allStudentsQuery = await db.collection('users')
-            .where('role', '==', 'student')
-            .get();
-        
-        console.log(`📊 Found ${allStudentsQuery.size} total students`);
-        
-        // Get students who match the QR session's batch
-        const batchStudents = [];
-        const profilePromises = [];
-        
-        allStudentsQuery.forEach(studentDoc => {
-            const studentData = studentDoc.data();
-            
-            // Check student profiles to match batch
-            const profilePromise = db.collection('profiles').doc(studentDoc.id).get()
-                .then(profileDoc => {
-                    if (profileDoc.exists) {
-                        const profileData = profileDoc.data();
-                        
-                        // Check if student belongs to the same school and batch as QR session
-                        if (profileData.school === currentQRSession.school && 
-                            profileData.batch === currentQRSession.batch) {
-                            
-                            console.log('✅ Found matching student:', {
-                                id: studentDoc.id,
-                                name: profileData.fullName,
-                                regNumber: profileData.regNumber,
-                                batch: profileData.batch
-                            });
-                            
-                            batchStudents.push({
-                                id: studentDoc.id,
-                                userData: studentData,
-                                profileData: profileData
-                            });
-                        }
-                    } else {
-                        // Fallback: use email-based matching if no profile
-                        const email = studentData.email || '';
-                        let matches = false;
-                        
-                        if (currentQRSession.school === 'School of Technology' && email.includes('sot')) {
-                            if (currentQRSession.batch.startsWith('24') && email.includes('2428')) matches = true;
-                            if (currentQRSession.batch.startsWith('23') && email.includes('2328')) matches = true;
-                        } else if (currentQRSession.school === 'School of Management' && email.includes('som')) {
-                            if (currentQRSession.batch.startsWith('24') && email.includes('2428')) matches = true;
-                            if (currentQRSession.batch.startsWith('23') && email.includes('2328')) matches = true;
-                        }
-                        
-                        if (matches) {
-                            console.log('✅ Found matching student (fallback):', {
-                                id: studentDoc.id,
-                                email: email
-                            });
-                            
-                            batchStudents.push({
-                                id: studentDoc.id,
-                                userData: studentData,
-                                profileData: {
-                                    school: currentQRSession.school,
-                                    batch: currentQRSession.batch,
-                                    fullName: studentData.fullName || studentData.name,
-                                    regNumber: studentData.regNumber || 'N/A'
-                                }
-                            });
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.warn('Error fetching profile for student:', studentDoc.id, error);
-                });
-            
-            profilePromises.push(profilePromise);
-        });
-        
-        // Wait for all profile checks
-        await Promise.all(profilePromises);
-        
-        console.log(`📊 Found ${batchStudents.length} students in batch ${currentQRSession.batch}`);
-        
-        if (batchStudents.length === 0) {
-            console.log('❌ No students found in batch - cannot process absent students');
+        // Check if we have a valid session before opening modal
+        if (!currentVerificationSession) {
+            console.error('No verification session available!');
             if (statusElement) {
-                statusElement.innerHTML = '<p>No students found in batch. QR session completed.</p>';
+                statusElement.innerHTML = '<p style="color: #dc3545;">Error: No session data available for photo verification.</p>';
             }
             return;
         }
         
-        // Check which students have already marked attendance today for this subject
-        console.log('🔍 Checking existing attendance records...');
+        // Open the photo verification modal
+        openPhotoVerificationModal();
         
-        const studentIds = batchStudents.map(s => s.id);
-        const existingAttendanceQuery = await db.collection('attendances')
-            .where('date', '==', today)
-            .where('subject', '==', currentQRSession.subject)
-            .get();
+        // Auto-close the QR modal since we're moving to photo verification
+        setTimeout(() => {
+            console.log('📱 Auto-closing QR modal as photo verification is now open');
+            closeQRModal();
+        }, 1000);
         
-        // Create a set of student IDs who already have attendance marked
-        const studentsWithAttendance = new Set();
-        existingAttendanceQuery.forEach(doc => {
-            const data = doc.data();
-            if (data.userId && studentIds.includes(data.userId)) {
-                studentsWithAttendance.add(data.userId);
-                console.log(`📋 Student ${data.userId} already has attendance marked as ${data.status}`);
-            }
-        });
-        
-        console.log(`📊 ${studentsWithAttendance.size} students already have attendance marked`);
-        
-        // Find students who need to be marked absent
-        const studentsToMarkAbsent = batchStudents.filter(student => 
-            !studentsWithAttendance.has(student.id)
-        );
-        
-        console.log(`📊 ${studentsToMarkAbsent.length} students need to be marked absent`);
-        
-        if (studentsToMarkAbsent.length === 0) {
-            console.log('✅ All students in batch have already marked attendance');
-            if (statusElement) {
-                statusElement.innerHTML = '<p>All students have marked attendance. Session completed.</p>';
-            }
-            return;
-        }
-        
-        // Create batch write to mark all absent students
-        console.log('📝 Creating absent attendance records...');
-        
-        const batchWrite = db.batch();
-        const absentRecords = [];
-        
-        studentsToMarkAbsent.forEach(student => {
-            const attendanceRecord = {
-                userId: student.id,
-                studentEmail: student.userData.email,
-                studentName: student.profileData.fullName || student.userData.fullName || student.userData.name || 'Unknown Student',
-                regNumber: student.profileData.regNumber || student.userData.regNumber || 'N/A',
-                school: currentQRSession.school,
-                batch: currentQRSession.batch,
-                subject: currentQRSession.subject,
-                periods: currentQRSession.periods,
-                date: today,
-                status: 'absent',
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                markedAt: new Date(),
-                markedBy: currentFaculty.uid,
-                facultyName: facultyProfile ? facultyProfile.fullName : currentFaculty.email,
-                method: 'auto_qr_expiry',
-                reason: 'QR code expired - did not scan within time limit',
-                qrSessionId: currentQRSession.sessionId,
-                hasPhoto: false
-            };
-            
-            absentRecords.push(attendanceRecord);
-            
-            // Add to batch write
-            const attendanceRef = db.collection('attendances').doc();
-            batchWrite.set(attendanceRef, attendanceRecord);
-            
-            console.log(`📝 Will mark absent: ${attendanceRecord.studentName} (${attendanceRecord.regNumber})`);
-        });
-        
-        // Commit all absent records
-        await batchWrite.commit();
-        
-        console.log(`✅ Successfully marked ${absentRecords.length} students as absent`);
-        
-        // Update UI status
+        // Update status to show that photo verification is open
         if (statusElement) {
-            statusElement.innerHTML = `
-                <p>Session completed!</p>
-                <p style="font-size: 14px; margin-top: 8px;">
-                    📊 <strong>${absentRecords.length}</strong> students marked absent (did not scan QR code)<br>
-                    📊 <strong>${studentsWithAttendance.size}</strong> students marked present (scanned QR code)
-                </p>
-            `;
-            statusElement.style.color = '#28a745';
+            statusElement.innerHTML = '<p><strong>📸 Photo Verification Open:</strong> Review all student photos and click "Save Attendance" when ready.</p>';
+            statusElement.style.color = '#007bff';
         }
         
-        // Show success notification to faculty
-        showSuccessMessage(
-            `Attendance Session Completed!\n` +
-            `Present: ${studentsWithAttendance.size}, Absent: ${absentRecords.length}\n` +
-            `Subject: ${currentQRSession.subject} (${currentQRSession.periods} period${currentQRSession.periods > 1 ? 's' : ''})`
-        );
         
-        // Clear the current QR session
-        currentQRSession = null;
-        
-        console.log('✅ Automatic absent processing completed successfully');
-        
-    } catch (error) {
-        console.error('❌ Error processing absent students:', error);
-        
-        if (statusElement) {
-            statusElement.innerHTML = '<p style="color: #dc3545;">Error processing absent students. Please check console.</p>';
-        }
-        
-        showSuccessMessage('Error processing absent students: ' + error.message);
-    }
+    }, 2000); // 2-second delay to allow final photo submissions
 }
 
 // ===== BATCH REPORT FUNCTIONS =====
@@ -2887,7 +2748,7 @@ async function generateBatchAttendanceReport() {
             const batchStudentsTable = document.getElementById('batchStudentsTable');
             batchStudentsTable.innerHTML = `
                 <tr>
-                    <td colspan="6" style="text-align: center; color: #666; padding: 30px; background-color: #f8f9fa;">
+                    <td colspan="5" style="text-align: center; color: #666; padding: 30px; background-color: #f8f9fa;">
                         <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 10px; color: #007bff;"></i>
                         <h4 style="margin: 10px 0; color: #333;">No Attendance Session Found</h4>
                         <p style="margin: 5px 0;">No attendance was taken for <strong>${subject}</strong> on <strong>${(typeof formatISTDate === 'function') ? formatISTDate(new Date(selectedDate)) : new Date(selectedDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</strong></p>
@@ -2900,8 +2761,107 @@ async function generateBatchAttendanceReport() {
             return; // Exit the function early
         }
         
+        // Calculate total classes held on this date for this subject (once for all students)
+        // This should be the sum of periods from all unique QR sessions generated on this date
+        let totalClassesToday = 0;
+        const uniqueQRSessions = new Set(); // Track unique QR sessions
+        const sessionPeriods = new Map(); // sessionId -> periods
+        
+        console.log(`🔍 CALCULATING TOTAL CLASSES: Analyzing ${attendanceQuery.docs.length} attendance records for ${subject} on ${selectedDate}`);
+        
+        // Step 1: Extract all unique QR sessions and their periods from attendance records
+        attendanceQuery.forEach((doc, index) => {
+            const data = doc.data();
+            console.log(`📄 Attendance Record ${index + 1}:`, {
+                sessionId: data.sessionId,
+                periods: data.periods,
+                userId: data.userId,
+                status: data.status,
+                qrSessionId: data.qrSessionId // Sometimes stored as qrSessionId
+            });
+            
+            // Extract session ID (try both sessionId and qrSessionId)
+            const sessionId = data.sessionId || data.qrSessionId;
+            
+            if (sessionId && data.periods) {
+                if (!sessionPeriods.has(sessionId)) {
+                    sessionPeriods.set(sessionId, data.periods);
+                    uniqueQRSessions.add(sessionId);
+                    console.log(`➕ NEW QR SESSION: ${sessionId} with ${data.periods} periods`);
+                } else {
+                    // Verify periods match for same session
+                    const existingPeriods = sessionPeriods.get(sessionId);
+                    if (existingPeriods !== data.periods) {
+                        console.warn(`⚠️ INCONSISTENT DATA: Session ${sessionId} has ${existingPeriods} and ${data.periods} periods in different records`);
+                    }
+                }
+            }
+        });
+        
+        // Step 2: Calculate total classes by summing periods from all unique sessions
+        if (sessionPeriods.size > 0) {
+            totalClassesToday = Array.from(sessionPeriods.values()).reduce((sum, periods) => sum + periods, 0);
+            console.log(`🧮 QR Sessions found:`);
+            sessionPeriods.forEach((periods, sessionId) => {
+                console.log(`  - ${sessionId}: ${periods} periods`);
+            });
+            console.log(`📊 TOTAL CALCULATION: ${Array.from(sessionPeriods.values()).join(' + ')} = ${totalClassesToday} classes`);
+        } else {
+            // Fallback: If no sessions found, try to estimate from attendance data
+            console.warn(`⚠️ No QR sessions found in attendance data. Using fallback calculation...`);
+            
+            // Group by periods to estimate sessions
+            const periodCounts = new Map();
+            attendanceQuery.forEach(doc => {
+                const data = doc.data();
+                if (data.periods && data.periods > 0) {
+                    periodCounts.set(data.periods, (periodCounts.get(data.periods) || 0) + 1);
+                }
+            });
+            
+            if (periodCounts.size > 0) {
+                // Use the most frequently occurring period value
+                let maxCount = 0;
+                let mostCommonPeriods = 1;
+                periodCounts.forEach((count, periods) => {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        mostCommonPeriods = periods;
+                    }
+                });
+                totalClassesToday = mostCommonPeriods;
+                console.log(`🔄 FALLBACK: Using most common periods value: ${mostCommonPeriods}`);
+            } else {
+                totalClassesToday = 0;
+                console.log(`❌ NO DATA: No periods found in any attendance record`);
+            }
+        }
+        
+        // Final validation and summary
+        console.log(`📚 FINAL RESULT: ${totalClassesToday} classes held for ${subject} on ${selectedDate}`);
+        console.log(`🎯 Summary:`, {
+            uniqueQRSessions: uniqueQRSessions.size,
+            sessionDetails: Array.from(sessionPeriods.entries()),
+            totalPeriodsCalculated: totalClassesToday,
+            attendanceRecordsProcessed: attendanceQuery.docs.length
+        });
+        
+        // Validate result
+        if (totalClassesToday === 0) {
+            console.warn(`⚠️ WARNING: No classes calculated for ${subject} on ${selectedDate}. This might indicate:`);
+            console.warn(`  1. No QR codes were generated for this subject on this date`);
+            console.warn(`  2. Attendance records are missing session/period information`);
+            console.warn(`  3. Data inconsistency in the database`);
+        } else if (totalClassesToday > 8) {
+            console.warn(`🚨 SUSPICIOUS: ${totalClassesToday} classes seem unusually high for one day`);
+        } else {
+            console.log(`✅ VALIDATION: ${totalClassesToday} classes seems reasonable`);
+        }
+        
         // Attendance was taken on this date, proceed with normal report generation
         console.log(`✅ PROCEEDING: Attendance session found, generating report for ${batchStudents.length} students`);
+        console.log('📊 DEBUG: Batch Students List:', batchStudents.map(s => `${s.name} (${s.id})`));
+        console.log('📊 DEBUG: Attendance Map:', Array.from(attendanceMap.entries()));
         
         for (const student of batchStudents) {
             // Validate student belongs to the selected batch and school
@@ -2914,11 +2874,80 @@ async function generateBatchAttendanceReport() {
             // Only use actual recorded attendance (don't default to absent)
             const dateEntry = attendanceMap.get(student.id);
             
-            // Skip students who don't have any attendance record for this date
-            // This means they weren't part of the attendance session
+            // Use the pre-calculated totalClassesToday value for all students
+            
+            // Handle students who don't have any attendance record for this date
+            // They should be counted as absent
             if (!dateEntry) {
-                console.log(`📋 SKIPPING: Student ${student.name} has no attendance record for ${selectedDate} (wasn't in attendance session)`);
-                continue;
+                console.log(`📋 ABSENT: Student ${student.name} has no attendance record for ${selectedDate} (marked as absent)`);
+                
+                // Count as absent and add to report
+                totalAbsent++;
+                
+                // Calculate subject-specific attendance data for this student
+                const subjectQuery = await db.collection('attendances')
+                    .where('userId', '==', student.id)
+                    .where('subject', '==', subject)
+                    .get();
+                
+                let subjectTotalClasses = 0;
+                let subjectPresentClasses = 0;
+                
+                subjectQuery.forEach(doc => {
+                    const data = doc.data();
+                    const periods = data.periods || 1;
+                    subjectTotalClasses += periods;
+                    if (data.status === 'present') {
+                        subjectPresentClasses += periods;
+                    }
+                });
+                
+                // Calculate today's subject percentage (consistent for all students)
+                const todaySubjectPercentage = totalClassesToday > 0 ? Math.round((0 / totalClassesToday) * 100) : 0;
+                const historicalSubjectPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+                
+                console.log(`📈 ${student.name} (ABSENT) CALCULATION:`);
+                console.log(`  - Classes attended TODAY: 0`);
+                console.log(`  - Total classes TODAY: ${totalClassesToday}`);
+                console.log(`  - Today's subject percentage: ${todaySubjectPercentage}%`);
+                console.log(`  - Historical subject percentage: ${historicalSubjectPercentage}%`);
+                console.log(`  - Using TODAY's percentage for consistency`);
+                
+                // Calculate overall attendance data across ALL subjects for this student
+                const overallQuery = await db.collection('attendances')
+                    .where('userId', '==', student.id)
+                    .get();
+                
+                let overallTotalClasses = 0;
+                let overallPresentClasses = 0;
+                
+                overallQuery.forEach(doc => {
+                    const data = doc.data();
+                    const periods = data.periods || 1;
+                    overallTotalClasses += periods;
+                    if (data.status === 'present') {
+                        overallPresentClasses += periods;
+                    }
+                });
+                
+                const overallPercentage = overallTotalClasses > 0 ? Math.round((overallPresentClasses / overallTotalClasses) * 100) : 0;
+                
+                studentReportData.push({
+                    name: student.name,
+                    regNumber: student.regNumber,
+                    totalClassesToday: totalClassesToday, // Total classes held today (same for all students)
+                    classesAttendedToday: 0, // Classes attended today (0 for absent students)
+                    subjectPercentage: todaySubjectPercentage, // Today's subject percentage (0% for absent)
+                    overallPercentage: overallPercentage, // Historical overall percentage across all subjects
+                    subjectTotalClasses: subjectTotalClasses,
+                    subjectPresentClasses: subjectPresentClasses,
+                    overallTotalClasses: overallTotalClasses,
+                    overallPresentClasses: overallPresentClasses,
+                    attendanceId: null,
+                    hasPhoto: false
+                });
+                
+                continue; // Continue to next student
             }
             
             const dateStatus = dateEntry.status;
@@ -2933,34 +2962,113 @@ async function generateBatchAttendanceReport() {
                 totalAbsent++;
             }
             
-            // Calculate overall percentage for ONLY this specific subject (no other subjects)
-            console.log(`📊 CALCULATING OVERALL: Fetching ALL attendance for student ${student.id} in subject ${subject} ONLY`);
-            const overallQuery = await db.collection('attendances')
+            // Calculate classes attended by this student on the selected date
+            let studentClassesOnDate = 0;
+            const studentDateQuery = await db.collection('attendances')
+                .where('userId', '==', student.id)
+                .where('subject', '==', subject)
+                .where('date', '==', selectedDate)
+                .get();
+            
+            console.log(`👥 STUDENT ${student.name}: Found ${studentDateQuery.size} attendance records for ${selectedDate}`);
+            
+            studentDateQuery.forEach((doc, index) => {
+                const data = doc.data();
+                console.log(`  Record ${index + 1}:`, {
+                    status: data.status,
+                    periods: data.periods,
+                    sessionId: data.sessionId,
+                    subject: data.subject,
+                    date: data.date
+                });
+                
+                if (data.status === 'present') {
+                    const periodsToAdd = data.periods || 1;
+                    studentClassesOnDate += periodsToAdd;
+                    console.log(`    ➕ Adding ${periodsToAdd} periods. Student total now: ${studentClassesOnDate}`);
+                } else {
+                    console.log(`    ❌ Status is ${data.status}, not adding periods`);
+                }
+            });
+            
+            console.log(`📈 FINAL: ${student.name} attended ${studentClassesOnDate} out of ${totalClassesToday} classes on ${selectedDate}`);
+            
+            // Validation: Check if student attended more classes than were held
+            if (studentClassesOnDate > totalClassesToday) {
+                console.warn(`🚨 DATA INCONSISTENCY: ${student.name} attended ${studentClassesOnDate} classes but only ${totalClassesToday} were held that day!`);
+            }
+            
+            // Calculate subject-specific attendance data for this student
+            console.log(`📋 CALCULATING SUBJECT: Fetching attendance for student ${student.id} in subject ${subject}`);
+            const subjectQuery = await db.collection('attendances')
                 .where('userId', '==', student.id)
                 .where('subject', '==', subject)
                 .get();
             
-            console.log(`📈 Found ${overallQuery.size} total attendance records for ${student.name} in ${subject}`);
+            console.log(`📈 Found ${subjectQuery.size} subject attendance records for ${student.name} in ${subject}`);
             
-            let totalClasses = 0;
-            let presentClasses = 0;
+            let subjectTotalClasses = 0;
+            let subjectPresentClasses = 0;
+            
+            subjectQuery.forEach(doc => {
+                const data = doc.data();
+                const periods = data.periods || 1;
+                subjectTotalClasses += periods;
+                if (data.status === 'present') {
+                    subjectPresentClasses += periods;
+                }
+            });
+            
+            // Calculate today's subject percentage (consistent for all students)
+            const todaySubjectPercentage = totalClassesToday > 0 ? Math.round((studentClassesOnDate / totalClassesToday) * 100) : 0;
+            const historicalSubjectPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+            
+            console.log(`📈 ${student.name} CALCULATION:`);
+            console.log(`  - Classes attended TODAY: ${studentClassesOnDate}`);
+            console.log(`  - Total classes TODAY: ${totalClassesToday}`);
+            console.log(`  - Today's subject percentage: ${todaySubjectPercentage}%`);
+            console.log(`  - Historical subject percentage: ${historicalSubjectPercentage}%`);
+            console.log(`  - Using TODAY's percentage for consistency`);
+            
+            // Calculate overall attendance data across ALL subjects for this student
+            console.log(`📋 CALCULATING OVERALL: Fetching ALL attendance for student ${student.id} across ALL subjects`);
+            const overallQuery = await db.collection('attendances')
+                .where('userId', '==', student.id)
+                .get();
+            
+            console.log(`📈 Found ${overallQuery.size} total attendance records for ${student.name} across all subjects`);
+            
+            let overallTotalClasses = 0;
+            let overallPresentClasses = 0;
             
             overallQuery.forEach(doc => {
                 const data = doc.data();
                 const periods = data.periods || 1;
-                totalClasses += periods;
+                overallTotalClasses += periods;
                 if (data.status === 'present') {
-                    presentClasses += periods;
+                    overallPresentClasses += periods;
                 }
             });
             
-            const overallPercentage = totalClasses > 0 ? Math.round((presentClasses / totalClasses) * 100) : 0;
+            const overallPercentage = overallTotalClasses > 0 ? Math.round((overallPresentClasses / overallTotalClasses) * 100) : 0;
+            
+            console.log(`📈 ${student.name} OVERALL CALCULATION:`);
+            console.log(`  - Total classes (all subjects, historical): ${overallTotalClasses}`);
+            console.log(`  - Present classes (all subjects, historical): ${overallPresentClasses}`);
+            console.log(`  - Overall percentage: ${overallPercentage}%`);
+            console.log(`  - Expected: These are HISTORICAL percentages, not today's percentages`);
             
             studentReportData.push({
                 name: student.name,
                 regNumber: student.regNumber,
-                dateStatus: dateStatus,
-                overallPercentage: overallPercentage,
+                totalClassesToday: totalClassesToday, // Total classes held today (same for all students)
+                classesAttendedToday: studentClassesOnDate, // Classes attended today
+                subjectPercentage: todaySubjectPercentage, // Today's subject percentage (consistent calculation)
+                overallPercentage: overallPercentage, // Historical overall percentage across all subjects
+                subjectTotalClasses: subjectTotalClasses,
+                subjectPresentClasses: subjectPresentClasses,
+                overallTotalClasses: overallTotalClasses,
+                overallPresentClasses: overallPresentClasses,
                 attendanceId: attendanceId,
                 hasPhoto: hasPhoto
             });
@@ -3048,7 +3156,7 @@ function displayBatchReport(reportData) {
     if (studentReportData.length === 0) {
         batchStudentsTable.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; color: #666; padding: 20px;">
+                <td colspan="7" style="text-align: center; color: #666; padding: 20px;">
                     No students found for this batch.
                 </td>
             </tr>
@@ -3056,35 +3164,48 @@ function displayBatchReport(reportData) {
     } else {
         studentReportData.forEach((student, index) => {
             const row = document.createElement('tr');
-            row.className = student.dateStatus === 'present' ? 'present-row' : 'absent-row';
+            // Determine row class based on whether student attended any classes on the date
+            const attendedClasses = student.classesAttendedToday;
+            row.className = attendedClasses > 0 ? 'present-row' : 'absent-row';
             
-            const statusIcon = student.dateStatus === 'present' ? 
-                '<i class="fas fa-check-circle" style="color: #28a745;"></i>' : 
-                '<i class="fas fa-times-circle" style="color: #dc3545;"></i>';
-            
-            // Color code the overall percentage
-            let percentageClass = '';
-            if (student.overallPercentage >= 75) {
-                percentageClass = 'style="color: #28a745; font-weight: 600;"'; // Green
-            } else if (student.overallPercentage >= 60) {
-                percentageClass = 'style="color: #ffc107; font-weight: 600;"'; // Yellow
+            // Color code the subject percentage
+            let subjectPercentageClass = '';
+            if (student.subjectPercentage >= 75) {
+                subjectPercentageClass = 'style="color: #28a745; font-weight: 600;"'; // Green
+            } else if (student.subjectPercentage >= 60) {
+                subjectPercentageClass = 'style="color: #ffc107; font-weight: 600;"'; // Yellow
             } else {
-                percentageClass = 'style="color: #dc3545; font-weight: 600;"'; // Red
+                subjectPercentageClass = 'style="color: #dc3545; font-weight: 600;"'; // Red
             }
             
-            const photoCell = student.hasPhoto && student.attendanceId
-                ? `<button class="quick-action-btn" style="padding:6px 10px; border-radius:6px; font-size:12px;" onclick="viewAttendancePhoto('${student.attendanceId}')">
-                        <i class="fas fa-image"></i> View Photo
-                   </button>`
-                : `<span style="color:#999; font-size:12px;">No photo</span>`;
+            // Color code the overall percentage
+            let overallPercentageClass = '';
+            if (student.overallPercentage >= 75) {
+                overallPercentageClass = 'style="color: #28a745; font-weight: 600;"'; // Green
+            } else if (student.overallPercentage >= 60) {
+                overallPercentageClass = 'style="color: #ffc107; font-weight: 600;"'; // Yellow
+            } else {
+                overallPercentageClass = 'style="color: #dc3545; font-weight: 600;"'; // Red
+            }
+            
+            // Color code classes attended today
+            let classesAttendedTodayClass = '';
+            if (attendedClasses > 0 && attendedClasses === student.totalClassesToday) {
+                classesAttendedTodayClass = 'style="color: #28a745; font-weight: 600;"'; // Green - full attendance
+            } else if (attendedClasses > 0) {
+                classesAttendedTodayClass = 'style="color: #ffc107; font-weight: 600;"'; // Yellow - partial attendance
+            } else {
+                classesAttendedTodayClass = 'style="color: #dc3545; font-weight: 600;"'; // Red - absent
+            }
             
             row.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${student.name}</td>
                 <td>${student.regNumber}</td>
-                <td>${statusIcon} ${student.dateStatus.charAt(0).toUpperCase() + student.dateStatus.slice(1)}</td>
-                <td ${percentageClass}>${student.overallPercentage}%</td>
-                <td>${photoCell}</td>
+                <td>${student.totalClassesToday || 0}</td>
+                <td ${classesAttendedTodayClass}>${student.classesAttendedToday || 0}</td>
+                <td ${subjectPercentageClass}>${student.subjectPercentage || 0}%</td>
+                <td ${overallPercentageClass}>${student.overallPercentage || 0}%</td>
             `;
             
             batchStudentsTable.appendChild(row);
@@ -3188,20 +3309,22 @@ function exportBatchToExcel() {
         csvContent += `Total Students,${totalStudents}\n`;
         csvContent += `Batch Attendance Percentage,${percentage}\n\n`;
         csvContent += `Student Details\n`;
-        csvContent += `S.No.,Student Name,Enrollment ID,Date Status,Overall Percentage\n`;
+        csvContent += `S.No.,Student Name,Enrollment ID,Total Classes Today,Classes Attended Today,Subject Percentage,Overall Percentage\n`;
         
         const table = document.getElementById('batchStudentsTable');
         const rows = table.querySelectorAll('tr');
         
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 5) {
+            if (cells.length >= 7) {
                 const sno = cells[0].textContent;
                 const name = cells[1].textContent;
                 const regNumber = cells[2].textContent;
-                const status = cells[3].textContent.replace(/[^a-zA-Z]/g, ''); // Remove icons
-                const overallPercentage = cells[4].textContent;
-                csvContent += `${sno},${name},${regNumber},${status},${overallPercentage}\n`;
+                const totalClassesToday = cells[3].textContent;
+                const classesAttendedToday = cells[4].textContent;
+                const subjectPercentage = cells[5].textContent;
+                const overallPercentage = cells[6].textContent;
+                csvContent += `${sno},${name},${regNumber},${totalClassesToday},${classesAttendedToday},${subjectPercentage},${overallPercentage}\n`;
             }
         });
         
@@ -3294,3 +3417,780 @@ window.printBatchReport = printBatchReport;
 window.exportBatchToExcel = exportBatchToExcel;
 window.viewAttendancePhoto = viewAttendancePhoto;
 window.closePhotoModal = closePhotoModal;
+
+// ===== PHOTO VERIFICATION SYSTEM =====
+
+// Global variables for photo verification
+let currentVerificationSession = null;
+let pendingPhotos = [];
+let attendanceDecisions = {}; // { photoId: 'present' | 'absent' | 'pending' }
+let verificationStats = { total: 0, present: 0, absent: 0, pending: 0 };
+
+/**
+ * Opens the photo verification modal and loads pending photos
+ */
+function openPhotoVerificationModal() {
+    console.log('Opening photo verification modal...');
+    const modal = document.getElementById('photoVerificationModal');
+    
+    if (!modal) {
+        console.error('Photo verification modal not found');
+        alert('Photo verification interface is not available.');
+        return;
+    }
+    
+    modal.style.display = 'block';
+    loadPendingPhotosForVerification();
+}
+
+/**
+ * Closes the photo verification modal
+ */
+function closePhotoVerificationModal() {
+    console.log('Closing photo verification modal...');
+    const modal = document.getElementById('photoVerificationModal');
+    
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+    // Clear current session data
+    currentVerificationSession = null;
+    pendingPhotos = [];
+    attendanceDecisions = {};
+    verificationStats = { total: 0, present: 0, absent: 0, pending: 0 };
+    
+    // Clear the photos grid
+    const photosGrid = document.getElementById('photosGrid');
+    if (photosGrid) {
+        photosGrid.innerHTML = '';
+    }
+}
+
+/**
+ * Loads pending photos for faculty verification
+ */
+async function loadPendingPhotosForVerification() {
+    try {
+        console.log('Loading pending photos for verification...');
+        const db = firebase.firestore();
+        const user = firebase.auth().currentUser;
+        
+        if (!user) {
+            alert('Please log in to access photo verification.');
+            return;
+        }
+        
+        // Use current verification session if available, otherwise current QR session
+        const session = currentVerificationSession || currentQRSession;
+        if (!session) {
+            console.log('No active session found for photo verification');
+            const photosGrid = document.getElementById('photosGrid');
+            const noPhotosMessage = document.getElementById('noPhotosMessage');
+            photosGrid.innerHTML = '';
+            noPhotosMessage.style.display = 'block';
+            return;
+        }
+        
+        console.log('Loading photos for session:', session);
+        
+        // Show loading state
+        const photosGrid = document.getElementById('photosGrid');
+        const noPhotosMessage = document.getElementById('noPhotosMessage');
+        
+        photosGrid.innerHTML = '<div style="text-align: center; padding: 40px; grid-column: 1 / -1;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i><p>Loading photos...</p></div>';
+        noPhotosMessage.style.display = 'none';
+        
+        // Get today's date for filtering
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Query for temp photos from the current session
+        // Simplified query to avoid composite index requirement
+        let tempPhotosQuery;
+        
+        try {
+            // Try with session-specific query first
+            tempPhotosQuery = await db.collection('tempPhotos')
+                .where('qrSessionId', '==', session.sessionId)
+                .where('status', '==', 'pending_verification')
+                .get();
+        } catch (sessionError) {
+            console.warn('Session-specific query failed, trying faculty-wide query:', sessionError);
+            
+            // Fallback: Query all pending photos for this faculty today
+            tempPhotosQuery = await db.collection('tempPhotos')
+                .where('facultyId', '==', user.uid)
+                .where('status', '==', 'pending_verification')
+                .get();
+        }
+        
+        console.log(`Found ${tempPhotosQuery.docs.length} total photos from query`);
+        
+        // Filter photos to match current session and today's date (client-side filtering)
+        const filteredPhotos = [];
+        tempPhotosQuery.docs.forEach(doc => {
+            const data = doc.data();
+            
+            // Check if photo matches current session criteria
+            const matchesSession = data.qrSessionId === session.sessionId;
+            const matchesDate = data.date === today;
+            const matchesFaculty = data.facultyId === user.uid;
+            const isPending = data.status === 'pending_verification';
+            
+            if (matchesSession && matchesDate && matchesFaculty && isPending) {
+                filteredPhotos.push({
+                    id: doc.id,
+                    ...data
+                });
+            }
+        });
+        
+        console.log(`Found ${filteredPhotos.length} photos matching current session`);
+        
+        if (filteredPhotos.length === 0) {
+            photosGrid.innerHTML = '';
+            noPhotosMessage.style.display = 'block';
+            updateVerificationSummary();
+            return;
+        }
+        
+        // Process and display filtered photos
+        pendingPhotos = filteredPhotos;
+        
+        // Group photos by session for easier verification
+        const photosBySession = groupPhotosBySession(pendingPhotos);
+        
+        await displayPhotosForVerification(photosBySession);
+        // updateVerificationSummary is now called inside displayPhotosForVerification
+        
+    } catch (error) {
+        console.error('Error loading pending photos:', error);
+        
+        // Show simple error message
+        const photosGrid = document.getElementById('photosGrid');
+        if (photosGrid) {
+            photosGrid.innerHTML = '';
+        }
+        
+        const noPhotosMessage = document.getElementById('noPhotosMessage');
+        if (noPhotosMessage) {
+            noPhotosMessage.style.display = 'block';
+        }
+        
+        // Log error but don't show complex error to user
+        alert('Unable to load photos. Please try again.');
+    }
+}
+
+/**
+ * Groups photos by session (date, subject, batch)
+ */
+function groupPhotosBySession(photos) {
+    const sessions = {};
+    
+    photos.forEach(photo => {
+        const sessionKey = `${photo.date}_${photo.subject}_${photo.batch}_${photo.school}`;
+        
+        if (!sessions[sessionKey]) {
+            sessions[sessionKey] = {
+                date: photo.date,
+                subject: photo.subject,
+                batch: photo.batch,
+                school: photo.school,
+                periods: photo.periods,
+                qrSessionId: photo.qrSessionId,
+                photos: []
+            };
+        }
+        
+        sessions[sessionKey].photos.push(photo);
+    });
+    
+    return sessions;
+}
+
+/**
+ * Displays photos in the verification interface
+ */
+async function displayPhotosForVerification(photosBySession) {
+    const photosGrid = document.getElementById('photosGrid');
+    photosGrid.innerHTML = '';
+    
+    let photoCount = 0;
+    let totalStudentsInBatch = 0;
+    
+    for (const [sessionKey, session] of Object.entries(photosBySession)) {
+        // Get total student count for this batch on first session
+        if (photoCount === 0) {
+            totalStudentsInBatch = await getTotalStudentsInBatch(session.school, session.batch);
+            console.log(`📊 Total students in ${session.school} ${session.batch}: ${totalStudentsInBatch}`);
+        }
+        
+        // Add session header with formatted date
+        let formattedDate = session.date;
+        try {
+            const dateObj = new Date(session.date);
+            if (!isNaN(dateObj.getTime())) {
+                formattedDate = dateObj.toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit', 
+                    year: 'numeric',
+                    timeZone: 'Asia/Kolkata'
+                });
+            }
+        } catch (error) {
+            console.warn('Date formatting error in session header:', error);
+        }
+        
+        const sessionHeader = document.createElement('div');
+        sessionHeader.style.cssText = 'grid-column: 1 / -1; background: #e9ecef; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-weight: 600;';
+        sessionHeader.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>
+                    📚 ${session.subject} • ${session.batch} • ${session.school}
+                    <br>
+                    <small style="font-weight: normal; color: #666;">📅 ${formattedDate} • ${session.periods} periods</small>
+                </span>
+                <span style="background: #ffc107; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                    ${session.photos.length} photos
+                </span>
+            </div>
+        `;
+        photosGrid.appendChild(sessionHeader);
+        
+        // Display session info in verification modal header
+        if (photoCount === 0) {
+            // Use current session data
+            const sessionInfo = currentVerificationSession || currentQRSession;
+            if (sessionInfo) {
+                updateVerificationSessionInfo(sessionInfo);
+            }
+        }
+        
+        // Add individual photo cards
+        session.photos.forEach((photo, index) => {
+            const photoCard = createPhotoAttendanceCard(photo, photoCount + index);
+            photosGrid.appendChild(photoCard);
+            photoCount++;
+        });
+    }
+    
+    // Update stats with correct total student count
+    verificationStats.total = totalStudentsInBatch; // Total students in batch, not just photo submitters
+    verificationStats.pending = 0;
+    verificationStats.present = photoCount; // Students who submitted photos (marked present by default)
+    verificationStats.absent = Math.max(0, totalStudentsInBatch - photoCount); // Students who didn't submit photos
+    
+    console.log(`📊 Verification Stats: Total: ${verificationStats.total}, Present: ${verificationStats.present}, Absent: ${verificationStats.absent}`);
+    
+    // Update the display immediately
+    updateVerificationSummary();
+}
+
+/**
+ * Creates a photo attendance card with toggle functionality
+ */
+function createPhotoAttendanceCard(photo, index) {
+    const card = document.createElement('div');
+    card.className = 'photo-attendance-card';
+    card.id = `photo-card-${photo.id}`;
+    card.style.cssText = `
+        background: #f8fff9;
+        border: 3px solid #28a745;
+        border-radius: 12px;
+        padding: 15px;
+        text-align: center;
+        transition: all 0.3s ease;
+        position: relative;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    `;
+    
+    card.onclick = () => toggleAttendanceStatus(photo.id);
+    
+    // Initialize attendance decision as present (students who submitted photos are present by default)
+    attendanceDecisions[photo.id] = 'present';
+    
+    // Determine photo source (Firebase Storage URL or Firestore base64)
+    const photoSource = photo.photoURL || photo.photoData || 'data:image/svg+xml,%3csvg width=\'200\' height=\'150\' xmlns=\'http://www.w3.org/2000/svg\'%3e%3crect width=\'200\' height=\'150\' fill=\'%23cccccc\'/%3e%3ctext x=\'50%25\' y=\'50%25\' font-size=\'14\' text-anchor=\'middle\' dy=\'.3em\' fill=\'%23666666\'%3eNo Photo%3c/text%3e%3c/svg%3e';
+    const photoMethod = photo.photoMethod || (photo.photoURL ? 'firebase_storage' : 'firestore_fallback');
+    const compressionInfo = photo.compressionApplied ? ' (compressed)' : '';
+    
+    card.innerHTML = `
+        <div class="photo-container" style="margin-bottom: 10px; position: relative;">
+            <img src="${photoSource}" alt="Student Photo" 
+                 style="width: 100%; max-width: 200px; height: 150px; object-fit: cover; border-radius: 6px; cursor: pointer;"
+                 onclick="event.stopPropagation(); viewFullPhoto('${photoSource.replace(/'/g, '\\\'')}', '${photo.studentName.replace(/'/g, '\\\'')}', '${photo.id}')">
+            <div class="attendance-overlay" style="position: absolute; top: 5px; right: 5px; background: rgba(40, 167, 69, 0.9); color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                PRESENT
+            </div>
+            ${photoMethod === 'firestore_fallback' ? '<div style="position: absolute; bottom: 5px; left: 5px; background: rgba(255,193,7,0.9); color: #000; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: bold;">COMPRESSED</div>' : ''}
+        </div>
+        
+        <div class="student-info" style="margin-bottom: 12px; font-size: 14px;">
+            <div style="font-weight: 600; margin-bottom: 5px; color: #333;">${photo.studentName}</div>
+            <div style="color: #666; font-size: 13px;">${photo.regNumber}</div>
+            <div style="color: #888; font-size: 11px;">${photo.studentEmail}</div>
+            <div style="color: #999; font-size: 10px; margin-top: 5px;">
+                Submitted: ${formatDateTime(photo.timestamp)}${compressionInfo}
+            </div>
+            <div style="color: #aaa; font-size: 9px; margin-top: 3px;">
+                Method: ${photoMethod === 'firebase_storage' ? '🔥 Firebase Storage' : '📦 Compressed (Fallback)'}
+            </div>
+        </div>
+        
+        <div class="attendance-status" style="padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb;">
+            <i class="fas fa-check-circle"></i> MARKED PRESENT
+        </div>
+        
+        <div style="margin-top: 8px; font-size: 11px; color: #999; font-style: italic;">
+            Click card to mark absent • Click photo to view full-screen
+        </div>
+    `;
+    
+    return card;
+}
+
+/**
+ * Updates the session info display
+ */
+function updateVerificationSessionInfo(session) {
+    document.getElementById('verificationSchool').textContent = session.school || '-';
+    document.getElementById('verificationBatch').textContent = session.batch || '-';
+    document.getElementById('verificationSubject').textContent = session.subject || '-';
+    document.getElementById('verificationPeriods').textContent = session.periods || '-';
+    
+    currentVerificationSession = session;
+}
+
+/**
+ * Toggles attendance status for a student photo
+ */
+function toggleAttendanceStatus(photoId) {
+    const currentStatus = attendanceDecisions[photoId] || 'present';
+    let newStatus;
+    
+    // Simple toggle: present <-> absent (students who submitted photos start present, faculty clicks to mark absent)
+    switch (currentStatus) {
+        case 'present':
+            newStatus = 'absent';
+            break;
+        case 'absent':
+            newStatus = 'present';
+            break;
+        default:
+            newStatus = 'present';
+    }
+    
+    attendanceDecisions[photoId] = newStatus;
+    updatePhotoCardDisplay(photoId, newStatus);
+    updateVerificationSummary();
+    
+    console.log(`Photo ${photoId} status changed to: ${newStatus}`);
+}
+
+/**
+ * Updates the visual display of a photo card based on attendance status
+ */
+function updatePhotoCardDisplay(photoId, status) {
+    const card = document.getElementById(`photo-card-${photoId}`);
+    if (!card) return;
+    
+    const overlay = card.querySelector('.attendance-overlay');
+    const statusDiv = card.querySelector('.attendance-status');
+    
+    // Update card appearance based on status
+    switch (status) {
+        case 'present':
+            card.style.borderColor = '#28a745';
+            card.style.backgroundColor = '#f8fff9';
+            overlay.style.background = 'rgba(40, 167, 69, 0.9)';
+            overlay.textContent = 'PRESENT';
+            statusDiv.style.background = '#d4edda';
+            statusDiv.style.color = '#155724';
+            statusDiv.style.border = '1px solid #c3e6cb';
+            statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> MARKED PRESENT';
+            break;
+            
+        case 'absent':
+            card.style.borderColor = '#dc3545';
+            card.style.backgroundColor = '#fff8f8';
+            overlay.style.background = 'rgba(220, 53, 69, 0.9)';
+            overlay.textContent = 'ABSENT';
+            statusDiv.style.background = '#f8d7da';
+            statusDiv.style.color = '#721c24';
+            statusDiv.style.border = '1px solid #f5c6cb';
+            statusDiv.innerHTML = '<i class="fas fa-times-circle"></i> MARKED ABSENT';
+            break;
+            
+        case 'pending':
+        default:
+            card.style.borderColor = '#ffc107';
+            card.style.backgroundColor = 'white';
+            overlay.style.background = 'rgba(0, 0, 0, 0.7)';
+            overlay.textContent = 'NOT REVIEWED';
+            statusDiv.style.background = '#fff3cd';
+            statusDiv.style.color = '#856404';
+            statusDiv.style.border = '1px solid #ffeaa7';
+            statusDiv.innerHTML = '<i class="fas fa-clock"></i> CLICK TO MARK ATTENDANCE';
+            break;
+    }
+}
+
+// Bulk action functions removed - faculty will click individual photos to toggle attendance
+
+/**
+ * Views a photo in full size with attendance controls
+ */
+function viewFullPhoto(photoData, studentName, photoId) {
+    // Handle potential encoding issues in photo data
+    let cleanPhotoData = photoData;
+    if (typeof photoData === 'string') {
+        cleanPhotoData = photoData.replace(/\\'/g, "'");
+    }
+    const currentStatus = attendanceDecisions[photoId] || 'present';
+    const statusColors = {
+        present: '#28a745',
+        absent: '#dc3545',
+        pending: '#ffc107'
+    };
+    const statusText = {
+        present: 'PRESENT',
+        absent: 'ABSENT',
+        pending: 'NOT REVIEWED'
+    };
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.9); display: flex; flex-direction: column;
+        justify-content: center; align-items: center; z-index: 10000;
+    `;
+    
+    modal.innerHTML = `
+        <div style="max-width: 90%; max-height: 90%; text-align: center;">
+            <img src="${cleanPhotoData}" style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div style="color: white; margin: 20px 0 10px 0; font-size: 24px; font-weight: 600;">${studentName}</div>
+            <div style="background: ${statusColors[currentStatus]}; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; margin-bottom: 15px; display: inline-block;">
+                ${statusText[currentStatus]}
+            </div>
+            <div style="display: flex; gap: 15px; justify-content: center; margin-bottom: 15px;">
+                <button onclick="attendanceDecisions['${photoId}'] = 'present'; updatePhotoCardDisplay('${photoId}', 'present'); updateVerificationSummary(); document.body.removeChild(this.closest('.modal') || this.parentElement.parentElement.parentElement.parentElement);" 
+                        style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-check"></i> Mark Present
+                </button>
+                <button onclick="attendanceDecisions['${photoId}'] = 'absent'; updatePhotoCardDisplay('${photoId}', 'absent'); updateVerificationSummary(); document.body.removeChild(this.closest('.modal') || this.parentElement.parentElement.parentElement.parentElement);" 
+                        style="background: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-times"></i> Mark Absent
+                </button>
+            </div>
+            <div style="color: #ccc; font-size: 14px; cursor: pointer;" onclick="document.body.removeChild(this.parentElement.parentElement);">Click here to close</div>
+        </div>
+    `;
+    
+    // Close modal when clicking outside the content
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    };
+    
+    document.body.appendChild(modal);
+}
+
+/**
+ * Saves attendance based on faculty decisions
+ */
+async function saveAttendance() {
+    // No need to check for pending students since all are either present or absent by default
+    // All students are initialized as present, faculty can change individual ones to absent
+    
+    const photoSubmittersPresentCount = Object.values(attendanceDecisions).filter(status => status === 'present').length;
+    const photoSubmittersAbsentCount = Object.values(attendanceDecisions).filter(status => status === 'absent').length;
+    const studentsWhoDidntSubmitPhotos = Math.max(0, verificationStats.total - Object.keys(attendanceDecisions).length);
+    const totalAbsentCount = photoSubmittersAbsentCount + studentsWhoDidntSubmitPhotos;
+    
+    // Removed confirmation popup - save attendance directly
+    console.log(`Saving attendance for ${verificationStats.total} students: Present: ${photoSubmittersPresentCount}, Absent: ${totalAbsentCount}`);
+    
+    try {
+        console.log('Saving attendance based on faculty decisions...');
+        const db = firebase.firestore();
+        const batch = db.batch();
+        
+        let savedCount = 0;
+        let errors = [];
+        
+        // Process each photo and create attendance records based on decisions
+        for (const photo of pendingPhotos) {
+            const decision = attendanceDecisions[photo.id];
+            
+            if (decision === 'present') {
+                // Create attendance record for students marked as present
+                const attendanceRef = db.collection('attendances').doc();
+                const attendanceData = {
+                    userId: photo.studentId,
+                    studentEmail: photo.studentEmail,
+                    studentName: photo.studentName,
+                    regNumber: photo.regNumber,
+                    school: photo.school,
+                    batch: photo.batch,
+                    subject: photo.subject,
+                    periods: photo.periods,
+                    date: photo.date,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    status: 'present',
+                    markedAt: new Date(),
+                    qrTimestamp: photo.qrTimestamp,
+                    scanDelay: photo.scanDelay,
+                    hasPhoto: false, // Photos are NOT saved permanently
+                    photoTimestamp: photo.photoTimestamp,
+                    verificationMethod: 'qr_and_photo_verified',
+                    qrSessionId: photo.qrSessionId,
+                    facultyId: photo.facultyId,
+                    facultyName: photo.facultyName,
+                    markedBy: photo.facultyId,
+                    verifiedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    verifiedBy: firebase.auth().currentUser.uid,
+                    photoVerificationStatus: 'approved_by_faculty',
+                    // NOTE: Photo data is NOT included - photos are temporary only
+                    photoVerified: true,
+                    verificationNotes: 'Photo verified by faculty but not stored permanently'
+                };
+                
+                batch.set(attendanceRef, attendanceData);
+                savedCount++;
+            }
+            // Note: For 'absent' students, we don't create attendance records (they remain absent)
+            
+            // Mark temp photo as processed
+            const tempPhotoRef = db.collection('tempPhotos').doc(photo.id);
+            batch.update(tempPhotoRef, {
+                status: 'processed',
+                facultyDecision: decision,
+                processedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                processedBy: firebase.auth().currentUser.uid
+            });
+        }
+        
+        // Commit all changes
+        await batch.commit();
+        
+        console.log(`Attendance saved successfully: ${photoSubmittersPresentCount} present, ${totalAbsentCount} absent (${photoSubmittersAbsentCount} photo submitters + ${studentsWhoDidntSubmitPhotos} non-submitters)`);
+        
+        // Clean up processed photos immediately (photos are not saved permanently)
+        setTimeout(async () => {
+            try {
+                await cleanupProcessedPhotos();
+                console.log('✅ Temporary photos cleaned up successfully');
+            } catch (cleanupError) {
+                console.warn('Photo cleanup failed (non-critical):', cleanupError);
+            }
+        }, 1000); // Reduced delay since photos are temporary
+        
+        
+        // Close the modal
+        closePhotoVerificationModal();
+        
+    } catch (error) {
+        console.error('Error saving attendance:', error);
+        alert('Failed to save attendance. Please try again.');
+    }
+}
+
+// Old functions removed - replaced with new toggle-based system
+
+/**
+ * Fetches total student count for the current batch
+ */
+async function getTotalStudentsInBatch(school, batch) {
+    try {
+        const db = firebase.firestore();
+        
+        // Get all students from the selected batch
+        const allStudentsQuery = await db.collection('users')
+            .where('role', '==', 'student')
+            .get();
+        
+        // Find students matching the batch
+        const batchStudents = [];
+        const profilePromises = [];
+        
+        allStudentsQuery.forEach(studentDoc => {
+            const studentData = studentDoc.data();
+            
+            // Check student profiles to match batch
+            const profilePromise = db.collection('profiles').doc(studentDoc.id).get()
+                .then(profileDoc => {
+                    if (profileDoc.exists) {
+                        const profileData = profileDoc.data();
+                        
+                        if (profileData.school === school && profileData.batch === batch) {
+                            batchStudents.push({
+                                id: studentDoc.id,
+                                name: profileData.fullName || studentData.fullName || studentData.name,
+                                regNumber: profileData.regNumber || studentData.regNumber || 'N/A',
+                                email: studentData.email
+                            });
+                        }
+                    } else {
+                        // Fallback: use email-based matching
+                        const email = studentData.email || '';
+                        let matches = false;
+                        
+                        if (school === 'School of Technology' && email.includes('sot')) {
+                            if (batch.startsWith('24') && email.includes('2428')) matches = true;
+                            if (batch.startsWith('23') && email.includes('2328')) matches = true;
+                        } else if (school === 'School of Management' && email.includes('som')) {
+                            if (batch.startsWith('24') && email.includes('2428')) matches = true;
+                            if (batch.startsWith('23') && email.includes('2328')) matches = true;
+                        }
+                        
+                        if (matches) {
+                            batchStudents.push({
+                                id: studentDoc.id,
+                                name: studentData.fullName || studentData.name || extractNameFromEmail(email),
+                                regNumber: studentData.regNumber || studentData.registrationNumber || 'N/A',
+                                email: studentData.email
+                            });
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.warn('Error fetching profile for student:', studentDoc.id, error);
+                });
+            
+            profilePromises.push(profilePromise);
+        });
+        
+        await Promise.all(profilePromises);
+        
+        console.log(`📊 Found ${batchStudents.length} total students in ${school} - ${batch}`);
+        return batchStudents.length;
+        
+    } catch (error) {
+        console.error('Error fetching total student count:', error);
+        return 0; // Fallback to 0 if error
+    }
+}
+
+/**
+ * Updates the verification summary display
+ */
+function updateVerificationSummary() {
+    const summaryDiv = document.getElementById('verificationSummary');
+    const saveAttendanceBtn = document.querySelector('.save-attendance-btn');
+    
+    // Calculate current counts from decisions (only for photo submitters)
+    const photoSubmittersPresentCount = Object.values(attendanceDecisions).filter(status => status === 'present').length;
+    const photoSubmittersAbsentCount = Object.values(attendanceDecisions).filter(status => status === 'absent').length;
+    const pendingCount = Object.values(attendanceDecisions).filter(status => status === 'pending').length;
+    
+    // Calculate total absent count (photo submitters marked absent + students who didn't submit photos)
+    const studentsWhoDidntSubmitPhotos = Math.max(0, verificationStats.total - Object.keys(attendanceDecisions).length);
+    const totalAbsentCount = photoSubmittersAbsentCount + studentsWhoDidntSubmitPhotos;
+    
+    // Update stats
+    verificationStats.present = photoSubmittersPresentCount; // Only photo submitters marked present
+    verificationStats.absent = totalAbsentCount; // Photo submitters marked absent + non-submitters
+    verificationStats.pending = pendingCount;
+    
+    console.log(`📊 Updated Stats: Total: ${verificationStats.total}, Present: ${photoSubmittersPresentCount}, Absent: ${totalAbsentCount} (${photoSubmittersAbsentCount} photo submitters + ${studentsWhoDidntSubmitPhotos} non-submitters)`);
+    
+    // Update display
+    document.getElementById('totalPhotos').textContent = verificationStats.total;
+    document.getElementById('presentCount').textContent = photoSubmittersPresentCount;
+    document.getElementById('absentCount').textContent = totalAbsentCount;
+    document.getElementById('pendingCount').textContent = pendingCount;
+    
+    // Show summary if there are photos
+    if (verificationStats.total > 0) {
+        summaryDiv.style.display = 'block';
+        
+        // Enable save button (faculty can save anytime, system will handle pending as absent)
+        if (saveAttendanceBtn) saveAttendanceBtn.disabled = false;
+    } else {
+        summaryDiv.style.display = 'none';
+        if (saveAttendanceBtn) saveAttendanceBtn.disabled = true;
+    }
+}
+
+// Old finalizeAttendance function removed - replaced with saveAttendance
+
+/**
+ * Cleans up processed temporary photos to save storage space
+ */
+async function cleanupProcessedPhotos() {
+    try {
+        console.log('Starting cleanup of processed photos...');
+        const db = firebase.firestore();
+        
+        // Find processed photos older than 1 minute (to ensure finalization is complete)
+        const cutoffTime = new Date(Date.now() - 60000); // 1 minute ago
+        
+        const processedPhotosQuery = await db.collection('tempPhotos')
+            .where('status', '==', 'processed')
+            .where('processedAt', '<', cutoffTime)
+            .limit(100) // Process in batches to avoid timeouts
+            .get();
+        
+        if (processedPhotosQuery.empty) {
+            console.log('No processed photos to cleanup');
+            return;
+        }
+        
+        console.log(`Cleaning up ${processedPhotosQuery.docs.length} processed photos...`);
+        
+        // Delete processed photos in batch
+        const batch = db.batch();
+        processedPhotosQuery.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        console.log(`Successfully cleaned up ${processedPhotosQuery.docs.length} processed photos`);
+        
+    } catch (error) {
+        console.error('Error during photo cleanup:', error);
+        // Don't throw - cleanup is non-critical
+    }
+}
+
+/**
+ * Formats a date-time value for display
+ */
+function formatDateTime(value) {
+    if (!value) return '';
+    
+    try {
+        let date;
+        if (value.toDate && typeof value.toDate === 'function') {
+            date = value.toDate();
+        } else if (value instanceof Date) {
+            date = value;
+        } else {
+            date = new Date(value);
+        }
+        
+        return new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: 'short', 
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        }).format(date);
+    } catch (error) {
+        return '';
+    }
+}
+
+
+// Make photo verification functions globally accessible
+window.openPhotoVerificationModal = openPhotoVerificationModal;
+window.closePhotoVerificationModal = closePhotoVerificationModal;
+window.loadPendingPhotosForVerification = loadPendingPhotosForVerification;
+window.viewFullPhoto = viewFullPhoto;
+window.toggleAttendanceStatus = toggleAttendanceStatus;
+window.updatePhotoCardDisplay = updatePhotoCardDisplay;
+window.saveAttendance = saveAttendance;

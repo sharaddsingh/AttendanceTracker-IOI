@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if current user is faculty
+    function isFaculty() {
+      return isAuthenticated() && 
+             exists(/databases/(default)/documents/faculty/$(request.auth.uid));
+    }
+    
+    // Temporary photos for QR session verification
+    match /temp_photos/{studentId}/{date}/{filename} {
+      // Allow students to upload their own photos
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == studentId &&
+                       // Only allow image files
+                       request.resource.contentType.matches('image/.*') &&
+                       // Limit file size to 10MB
+                       request.resource.size < 10 * 1024 * 1024;
+      
+      // Allow faculty to read temp photos for verification
+      allow read: if isFaculty();
+      
+      // Allow students to read their own photos
+      allow read: if isAuthenticated() && request.auth.uid == studentId;
+      
+      // Allow faculty to delete processed photos
+      allow delete: if isFaculty();
+      
+      // Allow students to delete their own photos if needed
+      allow delete: if isAuthenticated() && request.auth.uid == studentId;
+    }
+    
+    // Profile photos
+    match /profile_photos/{studentId}/{filename} {
+      // Allow students to upload their own profile photos
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == studentId &&
+                       request.resource.contentType.matches('image/.*') &&
+                       request.resource.size < 5 * 1024 * 1024;
+      
+      // Allow students to read and update their own photos
+      allow read, write: if isAuthenticated() && request.auth.uid == studentId;
+      
+      // Allow faculty to read profile photos
+      allow read: if isFaculty();
+    }
+    
+    // Attendance verification photos (processed and approved)
+    match /attendance_photos/{studentId}/{date}/{filename} {
+      // Faculty can create attendance photos after verification
+      allow create: if isFaculty();
+      
+      // Students can read their own attendance photos
+      allow read: if isAuthenticated() && request.auth.uid == studentId;
+      
+      // Faculty can read all attendance photos
+      allow read: if isFaculty();
+      
+      // Faculty can delete old photos for cleanup
+      allow delete: if isFaculty();
+    }
+    
+    // Default deny all other operations
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

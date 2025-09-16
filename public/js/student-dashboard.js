@@ -40,8 +40,8 @@ function fetchAttendanceData() {
       snapshot.forEach(doc => {
         const data = doc.data();
         const { subject, status } = data;
-        // Enforce daily per-record periods within 1..4 as per rule (at most 4 classes a day)
-        const periods = Math.min(4, Math.max(1, Number(data.periods) || 1));
+        // Use the actual periods from the data without any limit
+        const periods = Math.max(1, Number(data.periods) || 1);
         
         if (!subject) return; // Skip if no subject
         
@@ -398,11 +398,6 @@ async function fetchTodayAttendance(user) {
     noTodayAttendance.style.display = 'none';
     todayAttendanceList.innerHTML = ''; // Clear existing entries
 
-    // Clamp total displayed classes to a maximum of 4 (legacy-safe)
-    let remaining = 4;
-    let totalRaw = 0;
-    let clamped = false;
-
     // Collect docs and sort by timestamp/markedAt for stable ordering
     const records = [];
     snapshot.forEach(doc => {
@@ -410,25 +405,17 @@ async function fetchTodayAttendance(user) {
       records.push({
         subject: d.subject,
         status: d.status,
-        periods: Math.min(4, Math.max(1, Number(d.periods) || 1)),
+        periods: Math.max(1, Number(d.periods) || 1),
         when: d.markedAt?.toDate?.() || d.timestamp?.toDate?.() || new Date(d.date)
       });
     });
     records.sort((a,b) => (a.when || 0) - (b.when || 0));
 
+    // Display all attendance records without any limit
     for (const rec of records) {
-      totalRaw += rec.periods;
-      const counted = Math.max(0, Math.min(rec.periods, remaining));
-      if (counted < rec.periods) clamped = true;
-      if (counted === 0 && remaining === 0) {
-        // Do not render extra items once cap reached
-        continue;
-      }
-      remaining -= counted;
-
       const statusText = rec.status === 'present' ? 'Present' : 'Absent';
       const statusColor = rec.status === 'present' ? '#28a745' : '#dc3545';
-      const periodsLabel = counted ? ` (${counted} ${counted > 1 ? 'classes' : 'class'})` : ' (0 counted)';
+      const periodsLabel = rec.periods ? ` (${rec.periods} ${rec.periods > 1 ? 'classes' : 'class'})` : '';
       
       const attendanceItem = `
         <div class="attendance-item" style="border-left-color: ${statusColor};">
@@ -437,17 +424,6 @@ async function fetchTodayAttendance(user) {
         </div>
       `;
       todayAttendanceList.innerHTML += attendanceItem;
-
-      if (remaining <= 0) {
-        remaining = 0; // ensure non-negative
-      }
-    }
-
-    if (clamped || totalRaw > 4) {
-      const note = document.createElement('div');
-      note.style.cssText = 'margin-top:8px; font-size:12px; color:#6c757d;';
-      note.textContent = 'Showing up to 4 classes (daily maximum).';
-      todayAttendanceList.appendChild(note);
     }
 
   } catch (error) {
@@ -1154,15 +1130,114 @@ document.getElementById("leaveForm").addEventListener("submit", async function (
 
 
 
-// Photo upload handler
-function handlePhotoUpload(event) {
+// Profile photo upload handler with Firebase Storage integration
+async function handlePhotoUpload(event) {
   const file = event.target.files[0];
-  if (file) {
+  if (!file) {
+    return;
+  }
+  
+  console.log('📸 Profile photo selected:', file.name, 'Size:', file.size);
+  
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    showNotification('Invalid File', 'Please select an image file.');
+    return;
+  }
+  
+  // Validate file size (5MB limit)
+  if (file.size > 5 * 1024 * 1024) {
+    showNotification('File Too Large', 'Please select an image smaller than 5MB.');
+    return;
+  }
+  
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      showNotification('Authentication Required', 'Please log in to upload a profile photo.');
+      return;
+    }
+    
+    // Show loading state
+    const profilePhoto = document.getElementById('profilePhoto');
+    const originalSrc = profilePhoto.src;
+    profilePhoto.style.opacity = '0.5';
+    
+    // Create a preview first
     const reader = new FileReader();
     reader.onload = function(e) {
-      document.getElementById('profilePhoto').src = e.target.result;
+      profilePhoto.src = e.target.result;
+      profilePhoto.style.opacity = '1';
     };
     reader.readAsDataURL(file);
+    
+    // Check if Firebase Storage is available
+    if (!storage) {
+      throw new Error('Firebase Storage is not configured. Please enable Firebase Storage in the console.');
+    }
+    
+    // Upload to Firebase Storage
+    const timestamp = Date.now();
+    const fileName = `profile_photos/${user.uid}/profile_${timestamp}.jpg`;
+    const storageRef = storage.ref().child(fileName);
+    
+    console.log('☁️ Uploading profile photo to Firebase Storage...');
+    
+    const uploadTask = await storageRef.put(file, {
+      contentType: file.type,
+      customMetadata: {
+        uploadedBy: user.uid,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+    
+    // Get download URL
+    const photoURL = await uploadTask.ref.getDownloadURL();
+    console.log('✅ Profile photo uploaded successfully:', photoURL);
+    
+    // Update user profile with photo URL (optional - save to localStorage and/or Firestore)
+    const savedProfile = localStorage.getItem('studentProfile');
+    if (savedProfile) {
+      const profileData = JSON.parse(savedProfile);
+      profileData.photoURL = photoURL;
+      localStorage.setItem('studentProfile', JSON.stringify(profileData));
+    }
+    
+    // Optionally save to Firestore profiles collection
+    try {
+      await db.collection('profiles').doc(user.uid).set({
+        photoURL: photoURL,
+        photoUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      console.log('✅ Profile photo URL saved to Firestore');
+    } catch (firestoreError) {
+      console.warn('Could not save photo URL to Firestore:', firestoreError);
+      // Don't fail the entire process if Firestore update fails
+    }
+    
+    showNotification('Profile Photo Updated', 'Your profile photo has been uploaded successfully!');
+    
+  } catch (error) {
+    console.error('❌ Error uploading profile photo:', error);
+    
+    // Restore original image on error
+    const profilePhoto = document.getElementById('profilePhoto');
+    if (originalSrc) {
+      profilePhoto.src = originalSrc;
+    }
+    profilePhoto.style.opacity = '1';
+    
+    // Show appropriate error message
+    let errorMessage = 'Failed to upload profile photo. Please try again.';
+    if (error.code === 'storage/unauthorized') {
+      errorMessage = 'You do not have permission to upload photos.';
+    } else if (error.code === 'storage/quota-exceeded') {
+      errorMessage = 'Storage quota exceeded. Please contact support.';
+    } else if (error.message && error.message.includes('Firebase Storage is not configured')) {
+      errorMessage = 'Photo upload is currently unavailable. Please contact your administrator to enable Firebase Storage.';
+    }
+    
+    showNotification('Upload Error', errorMessage);
   }
 }
 
@@ -1198,7 +1273,6 @@ function extractNameFromEmail(email) {
 
 // Load user profile and populate welcome message
 async function loadUserProfile(user) {
-  console.log('loadUserProfile called for:', user.email);
   
   try {
     // Check if profile exists in localStorage first
@@ -1206,7 +1280,6 @@ async function loadUserProfile(user) {
     if (savedProfile) {
       try {
         const profileData = JSON.parse(savedProfile);
-        console.log('Found saved profile:', profileData);
         
         // Ensure profile is marked as completed when we have valid saved data
         const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
@@ -1215,7 +1288,6 @@ async function loadUserProfile(user) {
         );
         
         if (isComplete && !localStorage.getItem('profileCompleted')) {
-          console.log('Profile data complete but not marked as completed, fixing...');
           localStorage.setItem('profileCompleted', 'true');
         }
         
@@ -1236,7 +1308,6 @@ async function loadUserProfile(user) {
       const profileDoc = await profileRef.get();
       if (profileDoc.exists) {
         const profileData = profileDoc.data();
-        console.log('Found Firebase profile:', profileData);
         
         // Validate Firebase profile data
         const requiredFields = ['fullName', 'regNumber', 'school', 'batch', 'phone'];
@@ -1253,17 +1324,14 @@ async function loadUserProfile(user) {
           
           return;
         } else {
-          console.log('Firebase profile incomplete, user needs to complete profile');
         }
       }
     } catch (profileError) {
-      console.log('No profile document found in Firebase');
     }
     
     // Fallback to name extracted from email (this should only happen if profile is incomplete)
     const nameFromEmail = extractNameFromEmail(user.email);
     updateWelcomeMessage(nameFromEmail);
-    console.log('Using name extracted from email (profile incomplete):', nameFromEmail);
     
   } catch (error) {
     console.error('Error loading user profile:', error);
@@ -1502,178 +1570,9 @@ function showLeaveStatusToast(notification) {
   console.log(`Showing toast for ${notification.status} leave request:`, notification.subject);
 }
 
-/* ===== DEBUG FUNCTIONS (for testing) ===== */
-// Debug function to manually test notification creation
-window.debugCreateTestNotification = async function(status = 'approved') {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log('❌ No authenticated user for debug test');
-      alert('Please log in first');
-      return;
-    }
-    
-    console.log('🧪 Creating test notification for user:', user.uid);
-    
-    const testNotificationData = {
-      userId: user.uid,
-      type: 'leave_status',
-      title: `Leave Request ${status === 'approved' ? 'Approved ✅' : 'Rejected ❌'}`,
-      message: `Your leave request for JAVA on 2025-01-15 has been ${status} by Prof. Test Faculty.`,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      read: false,
-      icon: status === 'approved' ? 'fa-check-circle' : 'fa-times-circle',
-      color: status === 'approved' ? '#28a745' : '#dc3545',
-      relatedRequestId: 'test-request-id',
-      leaveDate: '2025-01-15',
-      subject: 'JAVA',
-      facultyName: 'Prof. Test Faculty',
-      status: status,
-      comment: 'This is a test notification for debugging.',
-      createdAt: new Date()
-    };
-    
-    console.log('📝 Test notification data:', testNotificationData);
-    
-    const notificationRef = await db.collection('notifications').add(testNotificationData);
-    console.log('✅ Test notification created with ID:', notificationRef.id);
-    
-    // Verify the notification was created
-    const createdDoc = await notificationRef.get();
-    if (createdDoc.exists) {
-      console.log('✅ Verification: Notification exists:', createdDoc.data());
-      alert(`✅ Test notification created successfully! ID: ${notificationRef.id}`);
-    } else {
-      console.error('❌ Verification failed: Notification was not created');
-      alert('❌ Test notification creation failed!');
-    }
-    
-    return notificationRef.id;
-  } catch (error) {
-    console.error('❌ Error creating test notification:', error);
-    alert(`❌ Error: ${error.message}`);
-    return null;
-  }
-};
 
-// Debug function to test Firebase connection
-window.debugTestFirebaseConnection = async function() {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log('❌ No authenticated user');
-      return false;
-    }
-    
-    console.log('🧪 Testing Firebase connection...');
-    
-    // Test write access
-    const testData = {
-      test: true,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      userId: user.uid
-    };
-    
-    const testRef = await db.collection('test').add(testData);
-    console.log('✅ Write test successful, doc ID:', testRef.id);
-    
-    // Test read access
-    const readDoc = await testRef.get();
-    if (readDoc.exists) {
-      console.log('✅ Read test successful:', readDoc.data());
-    }
-    
-    // Clean up
-    await testRef.delete();
-    console.log('✅ Cleanup successful');
-    
-    alert('✅ Firebase connection test successful!');
-    return true;
-  } catch (error) {
-    console.error('❌ Firebase connection test failed:', error);
-    alert(`❌ Firebase connection test failed: ${error.message}`);
-    return false;
-  }
-};
 
-// Debug function to check notification permissions
-window.debugCheckNotificationPermissions = async function() {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log('❌ No authenticated user');
-      return;
-    }
-    
-    console.log('🔐 Testing notification collection permissions...');
-    
-    // Test read permissions
-    try {
-      const readTest = await db.collection('notifications')
-        .where('userId', '==', user.uid)
-        .limit(1)
-        .get();
-      console.log('✅ Read permission test successful, docs found:', readTest.size);
-    } catch (readError) {
-      console.error('❌ Read permission test failed:', readError);
-    }
-    
-    // Test write permissions
-    try {
-      const writeTestData = {
-        userId: user.uid,
-        type: 'test',
-        message: 'Permission test',
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        read: false
-      };
-      
-      const writeTest = await db.collection('notifications').add(writeTestData);
-      console.log('✅ Write permission test successful, doc ID:', writeTest.id);
-      
-      // Clean up
-      await writeTest.delete();
-      console.log('✅ Cleanup successful');
-      
-      alert('✅ Notification permissions test successful!');
-    } catch (writeError) {
-      console.error('❌ Write permission test failed:', writeError);
-      alert(`❌ Write permission test failed: ${writeError.message}`);
-    }
-  } catch (error) {
-    console.error('❌ Permission test error:', error);
-    alert(`❌ Permission test error: ${error.message}`);
-  }
-};
 
-// Debug function to check current user and notification listener status
-window.debugNotificationStatus = function() {
-  console.log('=== NOTIFICATION DEBUG STATUS ===');
-  console.log('Current user:', auth.currentUser ? {
-    uid: auth.currentUser.uid,
-    email: auth.currentUser.email
-  } : 'None');
-  console.log('Current notifications count:', notifications.length);
-  console.log('Notifications array:', notifications);
-  
-  if (auth.currentUser) {
-    // Test read access to notifications collection
-    db.collection('notifications')
-      .where('userId', '==', auth.currentUser.uid)
-      .limit(1)
-      .get()
-      .then(snapshot => {
-        console.log('Notification read test:', {
-          success: true,
-          size: snapshot.size,
-          empty: snapshot.empty
-        });
-      })
-      .catch(error => {
-        console.error('Notification read test failed:', error);
-      });
-  }
-};
 
 // Fallback notification query (simpler query without complex conditions)
 async function tryFallbackNotificationQuery() {
@@ -1749,12 +1648,6 @@ async function tryFallbackNotificationQuery() {
   }
 }
 
-// Make debug functions available globally
-if (typeof window !== 'undefined') {
-  window.debugCreateTestNotification = window.debugCreateTestNotification;
-  window.debugNotificationStatus = window.debugNotificationStatus;
-  window.tryFallbackNotificationQuery = tryFallbackNotificationQuery;
-}
 
 /* ===== QR SCANNER FUNCTIONS ===== */
 // Global camera permission state
@@ -2049,20 +1942,21 @@ async function markAttendance(qrData) {
       return;
     }
     
-    // Check if already marked attendance for this session
+    // Check if already marked attendance for this specific session
     const today = getISTDateString();
     const attendanceQuery = await db.collection('attendances')
       .where('userId', '==', user.uid)
       .where('date', '==', today)
       .where('subject', '==', qrData.subject)
+      .where('sessionId', '==', qrData.sessionId) // Check specific session
       .get();
     
     if (!attendanceQuery.empty) {
-      showNotification('Already Marked', `Attendance already recorded for ${qrData.subject} today.`);
+      showNotification('Already Marked', `Attendance already recorded for this ${qrData.subject} session.`);
       return;
     }
     
-    // Create attendance record (include faculty identifiers from QR)
+    // Create attendance record with session tracking
     const attendanceData = {
       userId: user.uid,
       studentEmail: user.email,
@@ -2080,10 +1974,12 @@ async function markAttendance(qrData) {
       scanDelay: Date.now() - qrData.timestamp,
       verificationMethod: 'qr',
       hasPhoto: false,
-      qrSessionId: qrData.sessionId || null,
+      sessionId: qrData.sessionId, // Primary session identifier
+      classTime: qrData.classTime || null, // Time when class happened
       facultyId: qrData.facultyId || null,
       facultyName: qrData.facultyName || null,
-      markedBy: qrData.facultyId || null
+      markedBy: qrData.facultyId || null,
+      generatedAt: qrData.generatedAt || null
     };
     
     // Save to Firebase
@@ -2604,8 +2500,34 @@ function confirmPhotoAndMarkAttendance() {
     'Saving photo and marking attendance. Please wait...'
   );
   
-  // Mark attendance with photo
-  markAttendanceWithPhoto(currentScannedData, capturedPhotoData);
+  // Submit photo for faculty verification - use direct Firestore fallback
+  try {
+    console.log('📸 Starting photo submission process...');
+    
+    // Get student profile
+    const savedProfile = localStorage.getItem('studentProfile');
+    let studentProfile = {};
+    if (savedProfile) {
+      studentProfile = JSON.parse(savedProfile);
+    }
+    
+    const user = auth.currentUser;
+    const today = getISTDateString();
+    
+    // Use Firestore fallback method directly (more reliable)
+    submitPhotoToFirestoreFallback(currentScannedData, capturedPhotoData, studentProfile, user, today)
+      .then((docId) => {
+        console.log('✅ Photo submission completed successfully:', docId);
+      })
+      .catch((error) => {
+        console.error('❌ Photo submission failed:', error);
+        showNotification('Photo Upload Error', 'Failed to submit photo. Please try again.');
+      });
+      
+  } catch (error) {
+    console.error('❌ Error in photo submission setup:', error);
+    showNotification('Photo Upload Error', 'Failed to setup photo submission. Please try again.');
+  }
   
   // Close photo capture modal after starting the process
   setTimeout(() => {
@@ -2632,8 +2554,146 @@ function resetPhotoCaptureUI() {
   }
 }
 
-// Mark attendance with photo verification
-async function markAttendanceWithPhoto(qrData, photoData) {
+// Firestore fallback for photo submission (when Storage is not available)
+async function submitPhotoToFirestoreFallback(qrData, photoData, studentProfile, user, today) {
+  try {
+    console.log('📦 Using Firestore fallback for photo submission...');
+    
+    // Compress the photo to fit in Firestore (1MB document limit)
+    let compressedPhoto = photoData;
+    let compressionApplied = false;
+    
+    // Check photo size and compress if needed
+    const photoSizeKB = (photoData.length * 0.75) / 1024; // Base64 is ~75% of actual bytes
+    console.log(`📷 Original photo size: ${photoSizeKB.toFixed(2)} KB`);
+    
+    if (photoSizeKB > 700) { // If larger than 700KB, compress it
+      console.log('🗜️ Compressing photo to fit in Firestore...');
+      compressedPhoto = await compressImageSimple(photoData, 0.5, 800, 600);
+      compressionApplied = true;
+      const compressedSizeKB = (compressedPhoto.length * 0.75) / 1024;
+      console.log(`✅ Compressed photo size: ${compressedSizeKB.toFixed(2)} KB`);
+      
+      // If still too large, compress more
+      if (compressedSizeKB > 700) {
+        console.log('🗜️ Applying stronger compression...');
+        compressedPhoto = await compressImageSimple(photoData, 0.3, 600, 450);
+        const finalSizeKB = (compressedPhoto.length * 0.75) / 1024;
+        console.log(`✅ Final compressed size: ${finalSizeKB.toFixed(2)} KB`);
+      }
+    }
+    
+    // Create temporary photo record with compressed photo data
+    const tempPhotoData = {
+      studentId: user.uid,
+      studentEmail: user.email,
+      studentName: studentProfile.fullName || extractNameFromEmail(user.email),
+      regNumber: studentProfile.regNumber || 'N/A',
+      school: qrData.school,
+      batch: qrData.batch,
+      subject: qrData.subject,
+      periods: qrData.periods,
+      date: today,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      photoTimestamp: new Date(),
+      qrTimestamp: qrData.timestamp,
+      scanDelay: Date.now() - qrData.timestamp,
+      qrSessionId: qrData.sessionId || null,
+      facultyId: qrData.facultyId || null,
+      facultyName: qrData.facultyName || null,
+      photoData: compressedPhoto, // Store compressed base64 photo directly
+      photoMethod: 'firestore_fallback', // Mark as fallback method
+      compressionApplied: compressionApplied,
+      originalSize: photoData.length,
+      compressedSize: compressedPhoto.length,
+      status: 'pending_verification',
+      verificationMethod: 'qr_and_photo',
+      submittedAt: new Date()
+    };
+    
+    console.log('💾 Saving photo to Firestore tempPhotos collection...');
+    
+    // Save to temporary photos collection
+    const docRef = await db.collection('tempPhotos').add(tempPhotoData);
+    console.log('✅ Photo saved to Firestore with ID:', docRef.id);
+    
+    // Show success notification
+    showNotification(
+      '📸 Photo Submitted!',
+      `Your photo for ${qrData.subject} has been submitted for faculty verification (using fallback storage).`
+    );
+    
+    // Add to local notifications
+    addNotification(
+      'info',
+      `📸 Photo submitted for ${qrData.subject} - ${qrData.periods} periods (awaiting verification)`,
+      'Just now'
+    );
+    
+    // Clear the scanned data
+    currentScannedData = null;
+    localStorage.removeItem('currentQrData');
+    console.log('✅ Photo submission completed using Firestore fallback');
+    
+    return docRef.id;
+    
+  } catch (error) {
+    console.error('❌ Firestore fallback failed:', error);
+    throw error;
+  }
+}
+
+// Simple image compression function
+async function compressImageSimple(dataURL, quality = 0.5, maxWidth = 800, maxHeight = 600) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      let { width, height } = img;
+      
+      // Resize if needed
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width *= ratio;
+        height *= ratio;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Return compressed image
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataURL;
+  });
+}
+
+// Helper function to convert data URL to blob
+function dataURLToBlob(dataURL) {
+  try {
+    // Split the data URL to get the base64 data
+    const arr = dataURL.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    
+    while(n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    
+    return new Blob([u8arr], { type: mime });
+  } catch (error) {
+    console.error('Error converting data URL to blob:', error);
+    return null;
+  }
+}
+
+// Submit photo for faculty verification (new workflow with Firebase Storage)
+async function submitPhotoForVerification(qrData, photoData) {
   try {
     const user = auth.currentUser;
     if (!user) {
@@ -2641,7 +2701,9 @@ async function markAttendanceWithPhoto(qrData, photoData) {
       return;
     }
     
-    // Get student profile data from local storage (existing behavior)
+    console.log('📸 Starting photo verification submission...');
+    
+    // Get student profile data from local storage
     const savedProfile = localStorage.getItem('studentProfile');
     let studentProfile = {};
     if (savedProfile) {
@@ -2659,22 +2721,66 @@ async function markAttendanceWithPhoto(qrData, photoData) {
       return;
     }
     
-    // Check if already marked attendance for this session
+    // Check if already submitted photo for this session
     const today = getISTDateString();
-    const attendanceQuery = await db.collection('attendances')
-      .where('userId', '==', user.uid)
+    // Use a simple query to avoid index/undefined issues
+    const baseQuerySnap = await db.collection('tempPhotos')
+      .where('studentId', '==', user.uid)
       .where('date', '==', today)
       .where('subject', '==', qrData.subject)
       .get();
     
-    if (!attendanceQuery.empty) {
-      showNotification('Already Marked', `Attendance already recorded for ${qrData.subject} today.`);
+    // Client-side filter by session if available
+    const alreadySubmitted = baseQuerySnap.docs.some(d => {
+      const data = d.data();
+      return !qrData.sessionId || data.qrSessionId === (qrData.sessionId || null);
+    });
+    
+    if (alreadySubmitted) {
+      showNotification('Photo Already Submitted', `Your photo for ${qrData.subject} has already been submitted for verification.`);
       return;
     }
     
-    // Create attendance record with photo (include faculty identifiers from QR)
-    const attendanceData = {
-      userId: user.uid,
+    // Convert base64 to blob for Firebase Storage upload
+    console.log('🔄 Converting photo data for storage...');
+    const photoBlob = dataURLToBlob(photoData);
+    
+    if (!photoBlob) {
+      throw new Error('Failed to convert photo data');
+    }
+    
+    // Generate unique photo filename
+    const timestamp = Date.now();
+    const photoFileName = `temp_photos/${user.uid}/${today}/${qrData.subject}_${timestamp}.jpg`;
+    
+    console.log('☁️ Uploading photo to Firebase Storage...', photoFileName);
+    
+    // Check if Firebase Storage is available
+    if (!storage) {
+      console.warn('Firebase Storage not available, using Firestore fallback');
+      // Instead of throwing error, directly use Firestore fallback
+      return submitPhotoToFirestoreFallback(qrData, photoData, studentProfile, user, today);
+    }
+    
+    // Upload photo to Firebase Storage
+    const storageRef = storage.ref().child(photoFileName);
+    const uploadTask = await storageRef.put(photoBlob, {
+      contentType: 'image/jpeg',
+      customMetadata: {
+        studentId: user.uid,
+        subject: qrData.subject,
+        date: today,
+        sessionId: qrData.sessionId || 'unknown'
+      }
+    });
+    
+    // Get download URL for the uploaded photo
+    const photoURL = await uploadTask.ref.getDownloadURL();
+    console.log('✅ Photo uploaded successfully:', photoURL);
+    
+    // Create temporary photo record for faculty verification (without embedding photo data)
+    const tempPhotoData = {
+      studentId: user.uid,
       studentEmail: user.email,
       studentName: studentProfile.fullName || extractNameFromEmail(user.email),
       regNumber: studentProfile.regNumber || 'N/A',
@@ -2684,61 +2790,117 @@ async function markAttendanceWithPhoto(qrData, photoData) {
       periods: qrData.periods,
       date: today,
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      status: 'present',
-      markedAt: new Date(),
+      photoTimestamp: new Date(),
       qrTimestamp: qrData.timestamp,
       scanDelay: Date.now() - qrData.timestamp,
-      hasPhoto: true,
-      photoTimestamp: new Date(),
-      verificationMethod: 'qr_and_photo',
       qrSessionId: qrData.sessionId || null,
       facultyId: qrData.facultyId || null,
       facultyName: qrData.facultyName || null,
-      markedBy: qrData.facultyId || null
+      photoURL: photoURL, // Store Firebase Storage URL instead of base64 data
+      photoFileName: photoFileName, // Store filename for potential cleanup
+      status: 'pending_verification', // Will be changed to 'approved' or 'rejected' by faculty
+      verificationMethod: 'qr_and_photo',
+      submittedAt: new Date()
     };
     
-    // For now, we'll store photo data as a field (in production, use Firebase Storage)
-    // Note: This is simplified - in production, upload to Firebase Storage and store URL
-    attendanceData.photoData = photoData; // Base64 encoded photo
+    console.log('💾 Saving photo verification record to Firestore...');
     
-    // Save to Firebase
-    const docRef = await db.collection('attendances').add(attendanceData);
-    console.log('Attendance with photo marked with ID:', docRef.id);
+    // Save to temporary photos collection
+    const docRef = await db.collection('tempPhotos').add(tempPhotoData);
+    console.log('✅ Photo verification record saved with ID:', docRef.id);
     
     // Show success notification
     showNotification(
-      '✅ Attendance Verified!',
-      `Present for ${qrData.subject} (${qrData.periods} periods) with photo verification - ${today}`
+      '📸 Photo Submitted!',
+      `Your photo for ${qrData.subject} has been submitted for faculty verification. Attendance will be marked after approval.`
     );
     
     // Add to local notifications
     addNotification(
-      'success',
-      `✅ Verified attendance for ${qrData.subject} - ${qrData.periods} periods (with photo)`,
+      'info',
+      `📸 Photo submitted for ${qrData.subject} - ${qrData.periods} periods (awaiting verification)`,
       'Just now'
     );
     
-    // Update local attendance data (simulate increase)
-    if (subjectData[qrData.subject]) {
-      subjectData[qrData.subject] = Math.min(100, subjectData[qrData.subject] + 2);
-      updateCharts();
-      showLowAttendanceWarnings();
-    }
-    
-    // Refresh today's attendance display
-    if (auth.currentUser) {
-      fetchTodayAttendance(auth.currentUser);
-    }
+    // Don't update attendance charts yet - wait for faculty approval
+    // Don't mark as present immediately - this will happen after faculty verification
     
     // Clear the scanned data and localStorage backup
     currentScannedData = null;
     localStorage.removeItem('currentQrData');
-    console.log('✅ QR data cleared after successful attendance marking');
+    console.log('✅ QR data cleared after photo submission');
     
   } catch (error) {
-    console.error('Error marking attendance with photo:', error);
-    showNotification('Error', 'Failed to mark attendance with photo. Please try again.');
+    console.error('❌ Error submitting photo for verification:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      name: error.name,
+      stack: error.stack
+    });
+    
+    // Debug: Check Firebase Storage availability
+    console.error('🔍 Firebase Storage Debug:', {
+      storageAvailable: typeof storage !== 'undefined',
+      storageObject: storage,
+      firebaseApp: typeof firebase !== 'undefined',
+      authUser: auth?.currentUser?.uid || 'No user'
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to submit photo for verification. Please try again.';
+    let debugInfo = '';
+    
+    // Check for specific Firebase Storage errors
+    if (error.code === 'storage/unauthorized') {
+      errorMessage = 'You do not have permission to upload photos. Please contact support.';
+      debugInfo = 'Storage rules may not be deployed correctly.';
+    } else if (error.code === 'storage/canceled') {
+      errorMessage = 'Photo upload was cancelled. Please try again.';
+    } else if (error.code === 'storage/unknown') {
+      errorMessage = 'Unknown error occurred while uploading photo. Please check your internet connection.';
+    } else if (error.code === 'storage/quota-exceeded') {
+      errorMessage = 'Storage quota exceeded. Please contact support.';
+    } else if (error.message && error.message.includes('Firebase Storage is not configured')) {
+      errorMessage = 'Photo upload is currently unavailable. Firebase Storage needs to be enabled. Please contact your administrator.';
+      debugInfo = 'Firebase Storage service is not enabled in the console.';
+    } else if (error.message && error.message.includes('convert')) {
+      errorMessage = 'Failed to process photo data. Please take the photo again.';
+    } else if (error.code === 'storage/object-not-found') {
+      errorMessage = 'Storage bucket not found. Please contact support.';
+      debugInfo = 'Firebase Storage bucket may not be created.';
+    } else if (error.message && error.message.includes('network')) {
+      errorMessage = 'Network error. Please check your internet connection and try again.';
+    } else if (!storage) {
+      errorMessage = 'Firebase Storage is not initialized. Please refresh the page and try again.';
+      debugInfo = 'Storage object is undefined - Firebase Storage may not be enabled.';
+    }
+    
+    showNotification('Photo Upload Error', errorMessage + (debugInfo ? '\n\nDebug: ' + debugInfo : ''));
+    
+    // Log additional debug information
+    console.error('🔍 Additional Debug Info:', {
+      errorMessage,
+      debugInfo,
+      currentUser: auth?.currentUser ? {
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email
+      } : 'Not logged in',
+      qrData: currentScannedData ? {
+        school: currentScannedData.school,
+        batch: currentScannedData.batch,
+        subject: currentScannedData.subject
+      } : 'No QR data',
+      photoDataLength: capturedPhotoData ? capturedPhotoData.length : 0
+    });
   }
+}
+
+// Keep the old function for backward compatibility but mark as deprecated
+// Mark attendance with photo verification (DEPRECATED - use submitPhotoForVerification instead)
+async function markAttendanceWithPhoto(qrData, photoData) {
+  console.warn('markAttendanceWithPhoto is deprecated. Using new photo verification workflow.');
+  return await submitPhotoForVerification(qrData, photoData);
 }
 
 // Request camera permission function
