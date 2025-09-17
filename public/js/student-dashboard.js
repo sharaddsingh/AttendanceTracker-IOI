@@ -496,7 +496,7 @@ async function fetchYesterdayAttendance(user) {
       attendanceItem.innerHTML = `
         <div style="display: flex; align-items: center; gap: 10px;">
           <i class="fas ${statusIcon}" style="color: ${statusColor}; font-size: 16px;"></i>
-          <span class="subject-name" style="font-weight: 600; color: #fff;">${subject}</span>
+          <span class="subject-name" style="font-weight: 600; color: #2C3E50;">${subject}</span>
           ${periodsText ? `<span style="font-size: 12px; color: #aaa;">(${periodsText})</span>` : ''}
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -518,12 +518,36 @@ async function fetchYesterdayAttendance(user) {
       
       yesterdayList.appendChild(attendanceItem);
     });
+    
+    // Check if the list is scrollable and add appropriate class
+    checkYesterdayScrollability();
 
   } catch (error) {
     console.error('Error fetching yesterday\'s attendance:', error);
     noYesterdayData.style.display = 'block';
     yesterdayList.style.display = 'none';
     yesterdayList.innerHTML = '';
+  }
+}
+
+// Function to check if yesterday's attendance list is scrollable
+function checkYesterdayScrollability() {
+  const yesterdaySection = document.getElementById('yesterdaySection');
+  const yesterdayList = document.getElementById('yesterdayList');
+  
+  if (yesterdayList && yesterdaySection) {
+    // Use setTimeout to ensure DOM has been updated
+    setTimeout(() => {
+      const isScrollable = yesterdayList.scrollHeight > yesterdayList.clientHeight;
+      
+      if (isScrollable) {
+        yesterdaySection.classList.add('has-scroll');
+        console.log('📋 Yesterday\'s attendance list is scrollable - fade effect enabled');
+      } else {
+        yesterdaySection.classList.remove('has-scroll');
+        console.log('📋 Yesterday\'s attendance list fits in container - no scroll needed');
+      }
+    }, 100);
   }
 }
 
@@ -661,6 +685,48 @@ function addNotification(type, message, timeAgo = 'Just now') {
   };
   
   notifications.unshift(notificationData); // Add to beginning
+  
+  // Sort notifications to maintain chronological order (newest first) with enhanced logic
+  notifications.sort((a, b) => {
+    // Enhanced timestamp handling (same as server notifications)
+    let timeA, timeB;
+    
+    if (a.timestamp && a.timestamp instanceof Date) {
+      timeA = a.timestamp;
+    } else if (a.timestamp && typeof a.timestamp.toDate === 'function') {
+      timeA = a.timestamp.toDate();
+    } else if (a.time === 'Just now') {
+      timeA = new Date();
+    } else {
+      timeA = new Date(0);
+    }
+    
+    if (b.timestamp && b.timestamp instanceof Date) {
+      timeB = b.timestamp;
+    } else if (b.timestamp && typeof b.timestamp.toDate === 'function') {
+      timeB = b.timestamp.toDate();
+    } else if (b.time === 'Just now') {
+      timeB = new Date();
+    } else {
+      timeB = new Date(0);
+    }
+    
+    const result = timeB - timeA; // Descending order (newest first)
+    
+    // If timestamps are equal, prioritize "Just now" notifications
+    if (result === 0) {
+      if (a.time === 'Just now' && b.time !== 'Just now') return -1;
+      if (b.time === 'Just now' && a.time !== 'Just now') return 1;
+    }
+    
+    return result;
+  });
+  
+  console.log('🗒 Local notification added and sorted. Current notification order:');
+  notifications.slice(0, 3).forEach((notif, index) => {
+    console.log(`  ${index + 1}. ${notif.message.substring(0, 30)} - ${notif.timestamp ? notif.timestamp.toLocaleString() : 'No timestamp'}`);
+  });
+  
   updateNotifications(notifications);
   return notificationData.id;
 }
@@ -719,6 +785,9 @@ async function markNotificationAsRead(notificationId) {
 
 // Fetch notifications from server/database with real-time leave status updates
 function fetchNotificationsFromServer() {
+  // TEMPORARY ALERT TO VERIFY NEW CODE IS LOADING
+  console.log('🚀 NEW NOTIFICATION SORTING CODE LOADED v2.0 - FORCE REORDER ENABLED');
+  
   // Listen for real-time notifications from Firebase
   if (!auth.currentUser) {
     console.log('No current user for notifications');
@@ -821,7 +890,65 @@ function fetchNotificationsFromServer() {
         }
       });
       
-      // Update the global notifications array
+      // Sort notifications by timestamp (most recent first) to ensure proper ordering
+      // This ensures recent notifications appear on top regardless of database query ordering
+      console.log('🗐 DEBUG: Raw notifications before sorting:');
+      serverNotifications.forEach((notif, index) => {
+        console.log(`  ${index + 1}. ${notif.title || notif.message.substring(0, 50)} - Timestamp: ${notif.timestamp ? notif.timestamp.toISOString() : 'NULL'} - Time: ${notif.time}`);
+      });
+      
+      // SIMPLIFIED SORTING: Check for "Just now" first, then by timestamp
+      serverNotifications.sort((a, b) => {
+        console.log(`🔍 SORT DEBUG: Comparing notifications:`);
+        console.log(`  A: "${a.message.substring(0, 30)}" - time: "${a.time}" - timestamp: ${a.timestamp ? a.timestamp.toISOString() : 'NULL'}`);
+        console.log(`  B: "${b.message.substring(0, 30)}" - time: "${b.time}" - timestamp: ${b.timestamp ? b.timestamp.toISOString() : 'NULL'}`);
+        
+        // Priority 1: "Just now" notifications always come first
+        if (a.time === 'Just now' && b.time !== 'Just now') {
+          console.log(`  ✅ A wins ("Just now" priority)`);
+          return -1;
+        }
+        if (b.time === 'Just now' && a.time !== 'Just now') {
+          console.log(`  ✅ B wins ("Just now" priority)`);
+          return 1;
+        }
+        
+        // Priority 2: Both are "Just now" or neither, sort by timestamp
+        const timeA = a.timestamp instanceof Date ? a.timestamp : (a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(0));
+        const timeB = b.timestamp instanceof Date ? b.timestamp : (b.timestamp && b.timestamp.toDate ? b.timestamp.toDate() : new Date(0));
+        
+        const result = timeB.getTime() - timeA.getTime(); // Use getTime() for clearer comparison
+        console.log(`  📅 Timestamp comparison: ${timeB.getTime()} - ${timeA.getTime()} = ${result}`);
+        console.log(`  🏁 Final result: ${result > 0 ? 'B wins' : result < 0 ? 'A wins' : 'tie'}`);
+        
+        return result;
+      });
+      
+      // FORCE REORDER: Manually move "Just now" notifications to the top
+      const justNowNotifications = serverNotifications.filter(n => n.time === 'Just now');
+      const otherNotifications = serverNotifications.filter(n => n.time !== 'Just now');
+      
+      console.log(`🚑 FORCE REORDER: Found ${justNowNotifications.length} "Just now" notifications`);
+      justNowNotifications.forEach((notif, index) => {
+        console.log(`  Just now #${index + 1}: ${notif.message.substring(0, 40)}`);
+      });
+      
+      // Sort other notifications by timestamp
+      otherNotifications.sort((a, b) => {
+        const timeA = a.timestamp instanceof Date ? a.timestamp : (a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(0));
+        const timeB = b.timestamp instanceof Date ? b.timestamp : (b.timestamp && b.timestamp.toDate ? b.timestamp.toDate() : new Date(0));
+        return timeB.getTime() - timeA.getTime();
+      });
+      
+      // Combine: "Just now" notifications first, then others
+      serverNotifications = [...justNowNotifications, ...otherNotifications];
+      
+      console.log('🗒 Notifications AFTER force reordering ("Just now" first, then by timestamp):');
+      serverNotifications.forEach((notif, index) => {
+        console.log(`  ${index + 1}. ${notif.title || notif.message.substring(0, 50)} - Time: ${notif.time} - Timestamp: ${notif.timestamp ? notif.timestamp.toISOString() : 'NULL'}`);
+      });
+      
+      // Update the global notifications array with sorted notifications
       notifications = serverNotifications;
       updateNotifications(notifications);
       
@@ -863,6 +990,59 @@ function getTimeAgo(date) {
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
   return `${Math.floor(diffInSeconds / 86400)} days ago`;
 }
+
+// Manual refresh function for notifications (can be called from console for debugging)
+function refreshNotifications() {
+  console.log('🔄 MANUAL REFRESH: Re-sorting and updating notifications...');
+  
+  // Re-calculate time for all notifications
+  notifications.forEach(notif => {
+    if (notif.timestamp) {
+      notif.time = getTimeAgo(notif.timestamp);
+    }
+  });
+  
+  // MANUAL REFRESH: Force reorder with same logic as server notifications
+  const justNowNotifications = notifications.filter(n => n.time === 'Just now');
+  const otherNotifications = notifications.filter(n => n.time !== 'Just now');
+  
+  console.log(`🚑 MANUAL REFRESH: Found ${justNowNotifications.length} "Just now" notifications`);
+  
+  // Sort other notifications by timestamp
+  otherNotifications.sort((a, b) => {
+    const timeA = a.timestamp instanceof Date ? a.timestamp : (a.timestamp && a.timestamp.toDate ? a.timestamp.toDate() : new Date(0));
+    const timeB = b.timestamp instanceof Date ? b.timestamp : (b.timestamp && b.timestamp.toDate ? b.timestamp.toDate() : new Date(0));
+    return timeB.getTime() - timeA.getTime();
+  });
+  
+  // Combine: "Just now" notifications first, then others
+  notifications = [...justNowNotifications, ...otherNotifications];
+  
+  console.log('🗒 MANUAL REFRESH: Notifications after re-sorting:');
+  notifications.forEach((notif, index) => {
+    console.log(`  ${index + 1}. ${notif.title || notif.message.substring(0, 50)} - Timestamp: ${notif.timestamp ? notif.timestamp.toISOString() : 'NULL'} - Time: ${notif.time}`);
+  });
+  
+  // Update the display
+  updateNotifications(notifications);
+  
+  console.log('✅ MANUAL REFRESH: Notifications refreshed and display updated!');
+}
+
+// Make refreshNotifications globally available for debugging
+window.refreshNotifications = refreshNotifications;
+
+// Add window resize listener to handle dynamic scroll changes
+window.addEventListener('resize', () => {
+  // Debounce the resize event to avoid excessive calls
+  clearTimeout(window.resizeTimeout);
+  window.resizeTimeout = setTimeout(() => {
+    checkYesterdayScrollability();
+  }, 250);
+});
+
+// Make checkYesterdayScrollability globally available for debugging
+window.checkYesterdayScrollability = checkYesterdayScrollability;
 
 // Initialize page with dynamic data only
 function initializePage() {

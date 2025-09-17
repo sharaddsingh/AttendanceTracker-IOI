@@ -134,15 +134,40 @@ function setupEventListeners() {
 // --- CORE FUNCTIONS ---
 
 /**
- * Toggles the visibility of different dashboard sections.
+ * Shows a specific dashboard section and closes other expandable sections.
  * @param {string} sectionId - The ID of the section to show.
  */
 function showSection(sectionId) {
-    const sections = document.querySelectorAll('.dashboard .section[id]');
-    sections.forEach(section => {
+    const targetSection = document.getElementById(sectionId);
+    const manualSection = document.getElementById('manualAttendanceSection');
+    const reportsSection = document.getElementById('reportsSection');
+    
+    // If the target section is already visible, close it
+    if (targetSection.style.display === 'block') {
+        targetSection.style.display = 'none';
+        return;
+    }
+    
+    // Close both sections first
+    if (manualSection) manualSection.style.display = 'none';
+    if (reportsSection) reportsSection.style.display = 'none';
+    
+    // Show the target section
+    targetSection.style.display = 'block';
+    
+    console.log(`Opened section: ${sectionId}`);
+}
+
+/**
+ * Closes a specific section.
+ * @param {string} sectionId - The ID of the section to close.
+ */
+function closeSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) {
         section.style.display = 'none';
-    });
-    document.getElementById(sectionId).style.display = 'block';
+        console.log(`Closed section: ${sectionId}`);
+    }
 }
 
 /**
@@ -3395,6 +3420,7 @@ function closePhotoModal() {
 
 // Make functions globally accessible
 window.showSection = showSection;
+window.closeSection = closeSection;
 window.updateManualBatchOptions = updateManualBatchOptions;
 window.loadStudentsList = loadStudentsList;
 window.toggleStudentAttendance = toggleStudentAttendance;

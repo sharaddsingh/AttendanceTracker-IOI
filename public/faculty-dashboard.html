@@ -304,7 +304,12 @@
 
         <!-- Manual Attendance Section -->
         <div class="section" id="manualAttendanceSection" style="display: none;">
-            <h2><i class="fas fa-list-check"></i> Manual Attendance Entry</h2>
+            <div class="section-header">
+                <h2><i class="fas fa-list-check"></i> Manual Attendance Entry</h2>
+                <button class="close-section-btn" onclick="closeSection('manualAttendanceSection')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
             
             <!-- Form for selecting class details -->
             <div id="attendanceForm" class="attendance-form">
@@ -392,52 +397,15 @@
         
         <!-- Reports Section -->
         <div class="section" id="reportsSection" style="display: none;">
-            <h2><i class="fas fa-chart-bar"></i> Attendance Reports</h2>
-            
-            <!-- Report Type Selection -->
-            <div class="report-type-selection">
-                <div class="report-type-tabs">
-                    <button id="individualReportTab" class="tab-btn active" onclick="showReportType('individual')">
-                        <i class="fas fa-user"></i> Individual Student Report
-                    </button>
-                    <button id="batchReportTab" class="tab-btn" onclick="showReportType('batch')">
-                        <i class="fas fa-users"></i> Batch Attendance Report
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Individual Student Report Form -->
-            <div id="individualReportForm" class="report-form" style="display: block;">
-                <h3><i class="fas fa-user"></i> Individual Student Report</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="studentRegNumber">Student Registration Number (Enrollment ID) *</label>
-                        <input type="text" id="studentRegNumber" required 
-                               placeholder="Enter student registration number" 
-                               style="text-transform: uppercase;">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="reportSubject">Subject *</label>
-                        <select id="reportSubject" required>
-                            <option value="">Select Subject</option>
-                            <!-- Will be populated from faculty profile -->
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="form-actions">
-                    <button onclick="generateAttendanceReport()" class="generate-report-btn">
-                        <i class="fas fa-search"></i> View Attendance Report
-                    </button>
-                    <button onclick="resetReportForm()" class="reset-btn">
-                        <i class="fas fa-refresh"></i> Reset
-                    </button>
-                </div>
+            <div class="section-header">
+                <h2><i class="fas fa-chart-bar"></i> Attendance Reports</h2>
+                <button class="close-section-btn" onclick="closeSection('reportsSection')">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             
             <!-- Batch Attendance Report Form -->
-            <div id="batchReportForm" class="report-form" style="display: none;">
+            <div id="batchReportForm" class="report-form" style="display: block;">
                 <h3><i class="fas fa-users"></i> Batch Attendance Report</h3>
                 <div class="form-row">
                     <div class="form-group">
@@ -481,90 +449,6 @@
                     </button>
                     <button onclick="resetBatchReportForm()" class="reset-btn">
                         <i class="fas fa-refresh"></i> Reset
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Report Display -->
-            <div id="reportDisplay" class="report-display" style="display: none;">
-                <div class="report-header">
-                    <h3>Attendance Report</h3>
-                    <div class="report-info">
-                        <div class="info-row">
-                            <span><strong>Student:</strong> <span id="reportStudentName">-</span></span>
-                            <span><strong>Registration:</strong> <span id="reportStudentReg">-</span></span>
-                        </div>
-                        <div class="info-row">
-                            <span><strong>Subject:</strong> <span id="reportSubject">-</span></span>
-                            <span><strong>Generated:</strong> <span id="reportGeneratedDate">-</span></span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="report-summary">
-                    <div class="summary-card present">
-                        <div class="summary-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="summary-content">
-                            <h4 id="totalClassesAttended">0</h4>
-                            <p>Classes Attended</p>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card absent">
-                        <div class="summary-icon">
-                            <i class="fas fa-times-circle"></i>
-                        </div>
-                        <div class="summary-content">
-                            <h4 id="totalClassesMissed">0</h4>
-                            <p>Classes Missed</p>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card percentage">
-                        <div class="summary-icon">
-                            <i class="fas fa-percentage"></i>
-                        </div>
-                        <div class="summary-content">
-                            <h4 id="attendancePercentage">0%</h4>
-                            <div class="percentage-bar-container">
-                                <div id="percentageBar" class="percentage-bar" style="width: 0%; background-color: #28a745;"></div>
-                            </div>
-                            <p>Attendance Rate</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="attendance-records">
-                    <h4><i class="fas fa-calendar-alt"></i> Attendance Records</h4>
-                    <div class="table-container">
-                        <table class="attendance-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Status</th>
-                                    <th>Periods</th>
-                                    <th>Faculty</th>
-                                    <th>Photo</th>
-                                </tr>
-                            </thead>
-                            <tbody id="attendanceRecordsTable">
-                                <!-- Records will be populated here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <div class="report-actions">
-                    <button onclick="printReport()" class="print-btn">
-                        <i class="fas fa-print"></i> Print Report
-                    </button>
-                    <button onclick="exportToExcel()" class="export-btn">
-                        <i class="fas fa-download"></i> Export to Excel
-                    </button>
-                    <button onclick="resetReportForm()" class="back-btn">
-                        <i class="fas fa-arrow-left"></i> New Search
                     </button>
                 </div>
             </div>

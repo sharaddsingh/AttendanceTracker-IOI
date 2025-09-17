@@ -140,6 +140,104 @@ h2 {
     color: var(--primary-color);
 }
 
+/* Section Header with Close Button */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+    position: relative;
+}
+
+.section-header h2 {
+    margin-bottom: 0;
+    flex: 1;
+}
+
+.close-section-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    position: absolute;
+    top: -5px;
+    right: 0;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.close-section-btn:hover {
+    background: #c82333;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+}
+
+.close-section-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+}
+
+.close-section-btn i {
+    font-size: 14px;
+}
+
+/* Responsive design for section header close button */
+@media screen and (max-width: 768px) {
+    .section-header {
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-bottom: 15px;
+    }
+    
+    .section-header h2 {
+        font-size: 1.1rem;
+        margin-right: 45px; /* Space for close button */
+    }
+    
+    .close-section-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+        top: -2px;
+    }
+    
+    .close-section-btn i {
+        font-size: 12px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .section-header {
+        position: relative;
+        padding-bottom: 12px;
+    }
+    
+    .section-header h2 {
+        font-size: 1rem;
+        margin-right: 40px;
+    }
+    
+    .close-section-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 10px;
+        top: 0;
+    }
+    
+    .close-section-btn i {
+        font-size: 10px;
+    }
+}
+
 /* ===== BUTTONS & FORMS ===== */
 button, input, select {
     padding: 10px;

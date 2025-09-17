@@ -226,6 +226,84 @@ canvas {
 }
 
 
+/* ===== YESTERDAY'S ATTENDANCE SCROLLABLE SECTION ===== */
+#yesterdaySection {
+  max-height: 400px; /* Set maximum height for the section */
+  overflow: hidden; /* Hide overflow from the section itself */
+}
+
+#yesterdayList {
+  max-height: 300px; /* Set maximum height for the list */
+  overflow-y: auto; /* Enable vertical scrolling */
+  overflow-x: hidden; /* Hide horizontal scrollbar */
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #007bff #f1f3f4;
+}
+
+/* Webkit scrollbar styling for Chrome, Safari, Edge */
+#yesterdayList::-webkit-scrollbar {
+  width: 8px;
+}
+
+#yesterdayList::-webkit-scrollbar-track {
+  background: #f1f3f4;
+  border-radius: 4px;
+}
+
+#yesterdayList::-webkit-scrollbar-thumb {
+  background: #007bff;
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+#yesterdayList::-webkit-scrollbar-thumb:hover {
+  background: #0056b3;
+}
+
+/* Fade effect at the bottom to indicate more content */
+#yesterdaySection::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(transparent, var(--color-bg-secondary));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Show fade effect when list is scrollable */
+#yesterdaySection.has-scroll::after {
+  opacity: 1;
+}
+
+/* Ensure yesterday section has relative positioning for the fade effect */
+#yesterdaySection {
+  position: relative;
+}
+
+/* Yesterday attendance item styling improvements */
+#yesterdayList li {
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--color-bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+}
+
+#yesterdayList li:hover {
+  transform: translateX(5px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
 /* ===== PROFILE PHOTO STYLES ===== */
 .profile-photo-section {
   text-align: center;
