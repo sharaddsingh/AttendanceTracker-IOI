@@ -2888,6 +2888,29 @@ async function generateBatchAttendanceReport() {
         console.log('📊 DEBUG: Batch Students List:', batchStudents.map(s => `${s.name} (${s.id})`));
         console.log('📊 DEBUG: Attendance Map:', Array.from(attendanceMap.entries()));
         
+        // Get current date dynamically for each batch report generation
+        const reportGenerationTime = new Date();
+        const currentDateForReport = reportGenerationTime.toISOString().split('T')[0];
+        
+        // Set academic start date - September 16, 2025 (CORRECTED YEAR)
+        // This ensures all percentage calculations only include data from this date onwards
+        // Any attendance data before this date will be excluded from calculations
+        const academicStartDate = '2025-09-16';
+        console.log(`📅 ACADEMIC PERIOD: Start date: ${academicStartDate}, Current cutoff: ${currentDateForReport}`);
+        console.log(`📅 DYNAMIC DATE: Report generated at ${reportGenerationTime.toISOString()}`);
+        console.log(`🚫 EXCLUSION: All data before ${academicStartDate} will be ignored in percentage calculations`);
+        console.log(`✅ CORRECTION: Using September 16, 2025 as academic start (not 2024)`);
+        console.log(`📊 EXPECTED: Percentages will now calculate from 2025 data only`);
+        
+        console.log(`⚖️ FAIR ATTENDANCE EVALUATION SYSTEM (from ${academicStartDate}):`);
+        console.log(`  - Calculates TOTAL classes held for each subject (from academic start date)`);
+        console.log(`  - Compares individual student's PRESENT classes vs TOTAL classes`);
+        console.log(`  - When someone is ABSENT: their percentage DECREASES (fair evaluation)`);
+        console.log(`  - When someone is PRESENT: their percentage reflects actual performance`);
+        console.log(`  - Formula: (Present Classes / Total Classes Held) * 100`);
+        console.log(`  - Result: Absentees get lower %, present students get fair %`);
+        console.log(`  - 📅 Only includes data from ${academicStartDate} onwards (YEAR 2025)`);
+        
         for (const student of batchStudents) {
             // Validate student belongs to the selected batch and school
             if (student.profileData.school !== school || student.profileData.batch !== batch) {
@@ -2909,36 +2932,53 @@ async function generateBatchAttendanceReport() {
                 // Count as absent and add to report
                 totalAbsent++;
                 
-                // Calculate subject-specific attendance data for this student
-                const subjectQuery = await db.collection('attendances')
+                // FAIR CALCULATION: Calculate total classes held for this subject (across all students)
+                console.log(`📋 FAIR CALCULATION: Getting total classes held for subject ${subject} (from ${academicStartDate} to ${currentDateForReport})`);
+                const allSubjectClassesQuery = await db.collection('attendances')
+                    .where('subject', '==', subject)
+                    .get();
+                
+                // Calculate total classes held for this subject by unique sessions
+                const subjectSessionPeriods = new Map();
+                allSubjectClassesQuery.forEach(doc => {
+                    const data = doc.data();
+                    if (data.date && data.date >= academicStartDate && data.date <= currentDateForReport) {
+                        const sessionId = data.sessionId || data.qrSessionId || `${data.date}_${data.subject}`;
+                        if (sessionId && data.periods) {
+                            subjectSessionPeriods.set(sessionId, data.periods);
+                        }
+                    }
+                });
+                
+                const subjectTotalClasses = Array.from(subjectSessionPeriods.values()).reduce((sum, periods) => sum + periods, 0);
+                console.log(`🎯 TOTAL CLASSES for ${subject}: ${subjectTotalClasses} (from ${subjectSessionPeriods.size} unique sessions)`);
+                
+                // Calculate this student's present classes in the subject
+                const studentSubjectQuery = await db.collection('attendances')
                     .where('userId', '==', student.id)
                     .where('subject', '==', subject)
                     .get();
                 
-                let subjectTotalClasses = 0;
                 let subjectPresentClasses = 0;
-                
-                subjectQuery.forEach(doc => {
+                studentSubjectQuery.forEach(doc => {
                     const data = doc.data();
-                    const periods = data.periods || 1;
-                    subjectTotalClasses += periods;
-                    if (data.status === 'present') {
+                    if (data.date && data.date >= academicStartDate && data.date <= currentDateForReport && data.status === 'present') {
+                        const periods = data.periods || 1;
                         subjectPresentClasses += periods;
+                        console.log(`    ✅ Student present: ${data.date}, Periods: ${periods}`);
                     }
                 });
                 
-                // Calculate today's subject percentage (consistent for all students)
-                const todaySubjectPercentage = totalClassesToday > 0 ? Math.round((0 / totalClassesToday) * 100) : 0;
-                const historicalSubjectPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+                console.log(`📈 FAIR EVALUATION for ${student.name} (ABSENT) - Academic Period ${academicStartDate} to ${currentDateForReport}:`);
+                console.log(`  - Student present classes (from ${academicStartDate}): ${subjectPresentClasses}`);
+                console.log(`  - Total classes held for subject (from ${academicStartDate}): ${subjectTotalClasses}`);
+                console.log(`  - ⚖️ FAIR: If student misses class, percentage DECREASES as total classes increase`);
                 
-                console.log(`📈 ${student.name} (ABSENT) CALCULATION:`);
-                console.log(`  - Classes attended TODAY: 0`);
-                console.log(`  - Total classes TODAY: ${totalClassesToday}`);
-                console.log(`  - Today's subject percentage: ${todaySubjectPercentage}%`);
-                console.log(`  - Historical subject percentage: ${historicalSubjectPercentage}%`);
-                console.log(`  - Using TODAY's percentage for consistency`);
+                // FAIR FORMULA: (student's present classes / total classes held for subject) * 100
+                const overallSubjectPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+                console.log(`  - 📏 FAIR Formula: (${subjectPresentClasses}/${subjectTotalClasses}) * 100 = ${overallSubjectPercentage}%`);
                 
-                // Calculate overall attendance data across ALL subjects for this student
+                // Calculate overall attendance data across ALL subjects for this student (up to current date)
                 const overallQuery = await db.collection('attendances')
                     .where('userId', '==', student.id)
                     .get();
@@ -2948,10 +2988,13 @@ async function generateBatchAttendanceReport() {
                 
                 overallQuery.forEach(doc => {
                     const data = doc.data();
-                    const periods = data.periods || 1;
-                    overallTotalClasses += periods;
-                    if (data.status === 'present') {
-                        overallPresentClasses += periods;
+                    // Only include records from academic start date to current date
+                    if (data.date && data.date >= academicStartDate && data.date <= currentDateForReport) {
+                        const periods = data.periods || 1;
+                        overallTotalClasses += periods;
+                        if (data.status === 'present') {
+                            overallPresentClasses += periods;
+                        }
                     }
                 });
                 
@@ -2962,7 +3005,7 @@ async function generateBatchAttendanceReport() {
                     regNumber: student.regNumber,
                     totalClassesToday: totalClassesToday, // Total classes held today (same for all students)
                     classesAttendedToday: 0, // Classes attended today (0 for absent students)
-                    subjectPercentage: todaySubjectPercentage, // Today's subject percentage (0% for absent)
+                    subjectPercentage: overallSubjectPercentage, // Overall subject percentage (historical)
                     overallPercentage: overallPercentage, // Historical overall percentage across all subjects
                     subjectTotalClasses: subjectTotalClasses,
                     subjectPresentClasses: subjectPresentClasses,
@@ -3023,40 +3066,54 @@ async function generateBatchAttendanceReport() {
                 console.warn(`🚨 DATA INCONSISTENCY: ${student.name} attended ${studentClassesOnDate} classes but only ${totalClassesToday} were held that day!`);
             }
             
-            // Calculate subject-specific attendance data for this student
-            console.log(`📋 CALCULATING SUBJECT: Fetching attendance for student ${student.id} in subject ${subject}`);
-            const subjectQuery = await db.collection('attendances')
+            // FAIR CALCULATION: Calculate total classes held for this subject (across all students)
+            console.log(`📋 FAIR CALCULATION: Getting total classes held for subject ${subject} (from ${academicStartDate} to ${currentDateForReport})`);
+            const allSubjectClassesQuery = await db.collection('attendances')
+                .where('subject', '==', subject)
+                .get();
+            
+            // Calculate total classes held for this subject by unique sessions
+            const subjectSessionPeriods = new Map();
+            allSubjectClassesQuery.forEach(doc => {
+                const data = doc.data();
+                if (data.date && data.date >= academicStartDate && data.date <= currentDateForReport) {
+                    const sessionId = data.sessionId || data.qrSessionId || `${data.date}_${data.subject}`;
+                    if (sessionId && data.periods) {
+                        subjectSessionPeriods.set(sessionId, data.periods);
+                    }
+                }
+            });
+            
+            const subjectTotalClasses = Array.from(subjectSessionPeriods.values()).reduce((sum, periods) => sum + periods, 0);
+            console.log(`🎯 TOTAL CLASSES for ${subject}: ${subjectTotalClasses} (from ${subjectSessionPeriods.size} unique sessions)`);
+            
+            // Calculate this student's present classes in the subject
+            const studentSubjectQuery = await db.collection('attendances')
                 .where('userId', '==', student.id)
                 .where('subject', '==', subject)
                 .get();
             
-            console.log(`📈 Found ${subjectQuery.size} subject attendance records for ${student.name} in ${subject}`);
-            
-            let subjectTotalClasses = 0;
             let subjectPresentClasses = 0;
-            
-            subjectQuery.forEach(doc => {
+            studentSubjectQuery.forEach(doc => {
                 const data = doc.data();
-                const periods = data.periods || 1;
-                subjectTotalClasses += periods;
-                if (data.status === 'present') {
+                if (data.date && data.date >= academicStartDate && data.date <= currentDateForReport && data.status === 'present') {
+                    const periods = data.periods || 1;
                     subjectPresentClasses += periods;
+                    console.log(`    ✅ Student present: ${data.date}, Periods: ${periods}`);
                 }
             });
             
-            // Calculate today's subject percentage (consistent for all students)
-            const todaySubjectPercentage = totalClassesToday > 0 ? Math.round((studentClassesOnDate / totalClassesToday) * 100) : 0;
-            const historicalSubjectPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+            console.log(`📈 FAIR EVALUATION for ${student.name} (PRESENT) - Academic Period ${academicStartDate} to ${currentDateForReport}:`);
+            console.log(`  - Student present classes (from ${academicStartDate}): ${subjectPresentClasses}`);
+            console.log(`  - Total classes held for subject (from ${academicStartDate}): ${subjectTotalClasses}`);
+            console.log(`  - ⚖️ FAIR: Percentage reflects actual performance vs all classes held`);
             
-            console.log(`📈 ${student.name} CALCULATION:`);
-            console.log(`  - Classes attended TODAY: ${studentClassesOnDate}`);
-            console.log(`  - Total classes TODAY: ${totalClassesToday}`);
-            console.log(`  - Today's subject percentage: ${todaySubjectPercentage}%`);
-            console.log(`  - Historical subject percentage: ${historicalSubjectPercentage}%`);
-            console.log(`  - Using TODAY's percentage for consistency`);
+            // FAIR FORMULA: (student's present classes / total classes held for subject) * 100
+            const overallSubjectPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+            console.log(`  - 📏 FAIR Formula: (${subjectPresentClasses}/${subjectTotalClasses}) * 100 = ${overallSubjectPercentage}%`);
             
-            // Calculate overall attendance data across ALL subjects for this student
-            console.log(`📋 CALCULATING OVERALL: Fetching ALL attendance for student ${student.id} across ALL subjects`);
+            // Calculate overall attendance data across ALL subjects for this student (academic period)
+            console.log(`📋 CALCULATING OVERALL: Fetching ALL attendance for student ${student.id} across ALL subjects (from ${academicStartDate} to ${currentDateForReport})`);
             const overallQuery = await db.collection('attendances')
                 .where('userId', '==', student.id)
                 .get();
@@ -3065,30 +3122,38 @@ async function generateBatchAttendanceReport() {
             
             let overallTotalClasses = 0;
             let overallPresentClasses = 0;
+            let recordsProcessed = 0;
             
             overallQuery.forEach(doc => {
                 const data = doc.data();
-                const periods = data.periods || 1;
-                overallTotalClasses += periods;
-                if (data.status === 'present') {
-                    overallPresentClasses += periods;
+                // Only include records from academic start date to current date
+                if (data.date && data.date >= academicStartDate && data.date <= currentDateForReport) {
+                    recordsProcessed++;
+                    const periods = data.periods || 1;
+                    overallTotalClasses += periods;
+                    if (data.status === 'present') {
+                        overallPresentClasses += periods;
+                    }
                 }
             });
             
+            console.log(`📈 ACADEMIC PERIOD CALCULATION: Processed ${recordsProcessed} out of ${overallQuery.size} records (filtered from ${academicStartDate} to ${currentDateForReport})`);
+            
             const overallPercentage = overallTotalClasses > 0 ? Math.round((overallPresentClasses / overallTotalClasses) * 100) : 0;
             
-            console.log(`📈 ${student.name} OVERALL CALCULATION:`);
-            console.log(`  - Total classes (all subjects, historical): ${overallTotalClasses}`);
-            console.log(`  - Present classes (all subjects, historical): ${overallPresentClasses}`);
-            console.log(`  - Overall percentage: ${overallPercentage}%`);
-            console.log(`  - Expected: These are HISTORICAL percentages, not today's percentages`);
+            console.log(`📈 ${student.name} ACADEMIC OVERALL CALCULATION:`);
+            console.log(`  - Total classes (all subjects, ${academicStartDate} to ${currentDateForReport}): ${overallTotalClasses}`);
+            console.log(`  - Present classes (all subjects, ${academicStartDate} to ${currentDateForReport}): ${overallPresentClasses}`);
+            console.log(`  - 🎯 ACADEMIC Overall percentage: ${overallPercentage}%`);
+            console.log(`  - 📏 Formula used: (${overallPresentClasses}/${overallTotalClasses}) * 100 = ${overallPercentage}%`);
+            console.log(`  - 📅 Academic period: ${academicStartDate} to ${currentDateForReport}`);
             
             studentReportData.push({
                 name: student.name,
                 regNumber: student.regNumber,
                 totalClassesToday: totalClassesToday, // Total classes held today (same for all students)
                 classesAttendedToday: studentClassesOnDate, // Classes attended today
-                subjectPercentage: todaySubjectPercentage, // Today's subject percentage (consistent calculation)
+                subjectPercentage: overallSubjectPercentage, // Overall subject percentage (historical)
                 overallPercentage: overallPercentage, // Historical overall percentage across all subjects
                 subjectTotalClasses: subjectTotalClasses,
                 subjectPresentClasses: subjectPresentClasses,
@@ -3193,7 +3258,7 @@ function displayBatchReport(reportData) {
             const attendedClasses = student.classesAttendedToday;
             row.className = attendedClasses > 0 ? 'present-row' : 'absent-row';
             
-            // Color code the subject percentage
+            // Color code the subject percentage (now showing overall historical percentage for the specific subject)
             let subjectPercentageClass = '';
             if (student.subjectPercentage >= 75) {
                 subjectPercentageClass = 'style="color: #28a745; font-weight: 600;"'; // Green
@@ -3334,7 +3399,7 @@ function exportBatchToExcel() {
         csvContent += `Total Students,${totalStudents}\n`;
         csvContent += `Batch Attendance Percentage,${percentage}\n\n`;
         csvContent += `Student Details\n`;
-        csvContent += `S.No.,Student Name,Enrollment ID,Total Classes Today,Classes Attended Today,Subject Percentage,Overall Percentage\n`;
+        csvContent += `S.No.,Student Name,Enrollment ID,Total Classes Today,Classes Attended Today,Overall Subject Percentage,Overall Percentage\n`;
         
         const table = document.getElementById('batchStudentsTable');
         const rows = table.querySelectorAll('tr');
