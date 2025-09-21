@@ -190,6 +190,42 @@ h2 {
     font-size: 14px;
 }
 
+/* Header Actions */
+.header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.cleanup-btn {
+    padding: 10px 12px;
+    background-color: #17a2b8;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-size: 14px;
+}
+
+.cleanup-btn:hover {
+    background-color: #138496;
+}
+
+.logout-btn {
+    padding: 10px 15px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.logout-btn:hover {
+    background-color: #c82333;
+}
+
 /* Responsive design for section header close button */
 @media screen and (max-width: 768px) {
     .section-header {

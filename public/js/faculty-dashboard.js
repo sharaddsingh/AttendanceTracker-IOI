@@ -4077,7 +4077,17 @@ async function saveAttendance() {
             } catch (cleanupError) {
                 console.warn('Photo cleanup failed (non-critical):', cleanupError);
             }
-        }, 1000); // Reduced delay since photos are temporary
+        }, 500); // Very short delay since photos are temporary
+        
+        // Also schedule additional cleanup attempts to ensure thorough cleanup
+        setTimeout(async () => {
+            try {
+                await cleanupProcessedPhotos();
+                console.log('✅ Secondary cleanup completed');
+            } catch (cleanupError) {
+                console.warn('Secondary cleanup failed (non-critical):', cleanupError);
+            }
+        }, 5000); // 5 seconds later
         
         
         // Close the modal
@@ -4216,34 +4226,84 @@ async function cleanupProcessedPhotos() {
         console.log('Starting cleanup of processed photos...');
         const db = firebase.firestore();
         
-        // Find processed photos older than 1 minute (to ensure finalization is complete)
-        const cutoffTime = new Date(Date.now() - 60000); // 1 minute ago
-        
+        // Get all processed photos (simpler query to avoid composite index requirement)
         const processedPhotosQuery = await db.collection('tempPhotos')
             .where('status', '==', 'processed')
-            .where('processedAt', '<', cutoffTime)
             .limit(100) // Process in batches to avoid timeouts
             .get();
         
         if (processedPhotosQuery.empty) {
             console.log('No processed photos to cleanup');
+            
+            // Also try to cleanup any old photos without status field
+            const oldPhotosQuery = await db.collection('tempPhotos')
+                .limit(50)
+                .get();
+            
+            if (!oldPhotosQuery.empty) {
+                console.log(`Found ${oldPhotosQuery.docs.length} old photos without status, cleaning up...`);
+                const batch = db.batch();
+                oldPhotosQuery.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                console.log(`Successfully cleaned up ${oldPhotosQuery.docs.length} old photos`);
+            }
             return;
         }
         
-        console.log(`Cleaning up ${processedPhotosQuery.docs.length} processed photos...`);
+        console.log(`Found ${processedPhotosQuery.docs.length} processed photos to cleanup...`);
+        
+        // Filter photos that are at least 10 seconds old (reduced from 1 minute)
+        const cutoffTime = new Date(Date.now() - 10000); // 10 seconds ago
+        const photosToDelete = [];
+        
+        processedPhotosQuery.docs.forEach(doc => {
+            const data = doc.data();
+            const processedAt = data.processedAt ? data.processedAt.toDate() : new Date(0);
+            
+            if (processedAt < cutoffTime) {
+                photosToDelete.push(doc);
+            }
+        });
+        
+        if (photosToDelete.length === 0) {
+            console.log('All processed photos are too recent to delete yet');
+            return;
+        }
+        
+        console.log(`Cleaning up ${photosToDelete.length} processed photos...`);
         
         // Delete processed photos in batch
         const batch = db.batch();
-        processedPhotosQuery.docs.forEach(doc => {
+        photosToDelete.forEach(doc => {
             batch.delete(doc.ref);
         });
         
         await batch.commit();
-        console.log(`Successfully cleaned up ${processedPhotosQuery.docs.length} processed photos`);
+        console.log(`✅ Successfully cleaned up ${photosToDelete.length} processed photos`);
         
     } catch (error) {
-        console.error('Error during photo cleanup:', error);
-        // Don't throw - cleanup is non-critical
+        console.error('❌ Error during photo cleanup:', error);
+        
+        // If the status-based query fails, try a simpler cleanup of all old photos
+        try {
+            console.log('🔄 Attempting fallback cleanup...');
+            const db = firebase.firestore();
+            const fallbackQuery = await db.collection('tempPhotos').limit(20).get();
+            
+            if (!fallbackQuery.empty) {
+                console.log(`Fallback: Cleaning up ${fallbackQuery.docs.length} old photos`);
+                const batch = db.batch();
+                fallbackQuery.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                console.log(`✅ Fallback cleanup completed: ${fallbackQuery.docs.length} photos deleted`);
+            }
+        } catch (fallbackError) {
+            console.error('❌ Fallback cleanup also failed:', fallbackError);
+        }
     }
 }
 
@@ -4277,6 +4337,56 @@ function formatDateTime(value) {
 }
 
 
+/**
+ * Manual cleanup function for faculty to clear tempPhotos collection
+ */
+async function manualCleanupTempPhotos() {
+    const cleanupBtn = document.getElementById('cleanupBtn');
+    const originalHTML = cleanupBtn.innerHTML;
+    
+    try {
+        // Show loading state
+        cleanupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        cleanupBtn.disabled = true;
+        
+        console.log('🧹 Manual cleanup initiated by faculty');
+        
+        const db = firebase.firestore();
+        
+        // Get all photos from tempPhotos collection
+        const allPhotosQuery = await db.collection('tempPhotos').limit(100).get();
+        
+        if (allPhotosQuery.empty) {
+            console.log('✅ No temporary photos found - collection is already clean');
+            alert('✅ tempPhotos collection is already clean!');
+            return;
+        }
+        
+        console.log(`🔍 Found ${allPhotosQuery.docs.length} temporary photos to cleanup`);
+        
+        // Delete all photos in batch
+        const batch = db.batch();
+        allPhotosQuery.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        
+        console.log(`✅ Successfully cleaned up ${allPhotosQuery.docs.length} temporary photos`);
+        
+        // Success notification
+        showSuccessMessage(`Successfully cleaned up ${allPhotosQuery.docs.length} temporary photos!`);
+        
+    } catch (error) {
+        console.error('❌ Manual cleanup failed:', error);
+        alert('❌ Failed to cleanup temporary photos. Check console for details.');
+    } finally {
+        // Restore button state
+        cleanupBtn.innerHTML = originalHTML;
+        cleanupBtn.disabled = false;
+    }
+}
+
 // Make photo verification functions globally accessible
 window.openPhotoVerificationModal = openPhotoVerificationModal;
 window.closePhotoVerificationModal = closePhotoVerificationModal;
@@ -4285,3 +4395,4 @@ window.viewFullPhoto = viewFullPhoto;
 window.toggleAttendanceStatus = toggleAttendanceStatus;
 window.updatePhotoCardDisplay = updatePhotoCardDisplay;
 window.saveAttendance = saveAttendance;
+window.manualCleanupTempPhotos = manualCleanupTempPhotos;

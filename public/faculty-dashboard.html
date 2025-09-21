@@ -227,15 +227,13 @@
     </div>
 
     <div class="header">
-        <div class="header-top">
-            <h1><i class="fas fa-chalkboard-teacher"></i> Faculty Dashboard</h1>
-            <div class="header-controls">
-                <button id="logoutBtn" class="theme-toggle">
-                    <i class="fas fa-sign-out-alt"></i>
-                    Logout
-                </button>
-            </div>
+<div class="header-top">
+        <h1><i class="fas fa-chalkboard-teacher"></i> Faculty Dashboard</h1>
+        <div class="header-actions">
+            <button id="cleanupBtn" class="cleanup-btn" onclick="manualCleanupTempPhotos()" title="Clean up temporary photos"><i class="fas fa-broom"></i></button>
+            <button id="logoutBtn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
         </div>
+    </div>
         <!-- Faculty welcome message will be inserted here by JavaScript -->
     </div>
 

@@ -21,79 +21,280 @@ let subjectData = {};
 let overallTotalPeriods = 0;
 let overallPresentPeriods = 0;
 
-// Function to fetch real-time attendance data and calculate percentages
-function fetchAttendanceData() {
+// Function to fetch real-time attendance data and calculate percentages using FAIR EVALUATION (same as faculty dashboard)
+async function fetchAttendanceData() {
+  console.log('🔄 STUDENT DASHBOARD: Starting fetchAttendanceData...');
+  
   if (!auth.currentUser) {
-    console.log('No authenticated user for attendance data fetch');
+    console.error('❌ No authenticated user for attendance data fetch');
+    // Set empty data and update UI
+    window.subjectData = {};
+    window.overallTotalPeriods = 0;
+    window.overallPresentPeriods = 0;
+    updateCharts();
+    showLowAttendanceWarnings();
+    updateChartsVisibility();
     return;
   }
 
-  db.collection('attendances').where('userId', '==', auth.currentUser.uid)
-    .onSnapshot(snapshot => {
-      console.log(`Fetching attendance data: ${snapshot.size} records found`);
-      
-      // Calculate attendance percentages by subject (WEIGHTED BY PERIODS)
-      const subjectStats = {};
-      let totalPeriodsAll = 0;
-      let presentPeriodsAll = 0;
-      
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const { subject, status } = data;
-        // Use the actual periods from the data without any limit
-        const periods = Math.max(1, Number(data.periods) || 1);
-        
-        if (!subject) return; // Skip if no subject
-        
-        // Initialize subject stats if not exists
-        if (!subjectStats[subject]) {
-          subjectStats[subject] = {
-            totalPeriods: 0,
-            presentPeriods: 0
-          };
-        }
-        
-        // Count total periods and present periods
-        subjectStats[subject].totalPeriods += periods;
-        totalPeriodsAll += periods;
-        if (status === 'present') {
-          subjectStats[subject].presentPeriods += periods;
-          presentPeriodsAll += periods;
-        }
-      });
-      
-      // Calculate percentages (per subject)
-      const data = {};
-      Object.keys(subjectStats).forEach(subject => {
-        const stats = subjectStats[subject];
-        const percentage = stats.totalPeriods > 0 ? Math.round((stats.presentPeriods / stats.totalPeriods) * 100) : 0;
-        data[subject] = percentage;
-        console.log(`${subject}: ${stats.presentPeriods}/${stats.totalPeriods} periods = ${percentage}%`);
-      });
-      
-      // Save overall weighted periods for accurate overall attendance computation
-      overallTotalPeriods = totalPeriodsAll;
-      overallPresentPeriods = presentPeriodsAll;
-      
-      subjectData = data;
+  // Set academic start date - September 16, 2025
+  const academicStartDate = '2025-09-16';
+  const currentDate = new Date().toISOString().split('T')[0];
+  console.log(`📅 STUDENT DASHBOARD: Using FAIR EVALUATION from ${academicStartDate} to ${currentDate}`);
+  console.log(`👤 Current user: ${auth.currentUser.uid} (${auth.currentUser.email})`);
+
+  try {
+    console.log('📋 Step 1: Getting all student attendance records...');
+    // Get all subjects this student has attended
+    const studentSnapshot = await db.collection('attendances')
+      .where('userId', '==', auth.currentUser.uid)
+      .get();
+    
+    console.log(`📊 Found ${studentSnapshot.size} total student attendance records`);
+    
+    if (studentSnapshot.size === 0) {
+      console.log('⚠️ No attendance records found for this student at all');
+      console.log('⚠️ This means the student has never marked any attendance');
+      window.subjectData = {};
+      window.overallTotalPeriods = 0;
+      window.overallPresentPeriods = 0;
       updateCharts();
       showLowAttendanceWarnings();
-      
-      // Update charts visibility based on data availability
       updateChartsVisibility();
-    }, error => {
-      console.error('Error fetching attendance data:', error);
-      // Don't break the app, just log the error
-      subjectData = {};
-      overallTotalPeriods = 0;
-      overallPresentPeriods = 0;
-      updateChartsVisibility();
+      return;
+    }
+    
+    // Test: Check if ANY records exist without date filtering
+    let hasAnyValidRecords = false;
+    studentSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.subject && data.date) {
+        hasAnyValidRecords = true;
+      }
     });
+    
+    if (!hasAnyValidRecords) {
+      console.log('⚠️ No valid records found (missing subject or date fields)');
+      await fallbackAttendanceCalculation();
+      return;
+    }
+    
+    // Debug: Log all student records
+    console.log('📋 All student records:');
+    studentSnapshot.forEach((doc, index) => {
+      const data = doc.data();
+      console.log(`  Record ${index + 1}: ${data.date} | ${data.subject} | ${data.status} | ${data.periods}`);
+    });
+    
+    // Get unique subjects for this student (with date filtering)
+    const studentSubjects = new Set();
+    let filteredRecordsCount = 0;
+    
+    studentSnapshot.forEach(doc => {
+      const data = doc.data();
+      console.log(`🔍 Checking record: date=${data.date}, academicStart=${academicStartDate}, current=${currentDate}`);
+      
+      if (data.date && data.date >= academicStartDate && data.date <= currentDate && data.subject) {
+        studentSubjects.add(data.subject);
+        filteredRecordsCount++;
+        console.log(`✅ Included: ${data.subject} on ${data.date}`);
+      } else {
+        console.log(`❌ Excluded: date=${data.date}, subject=${data.subject}`);
+      }
+    });
+    
+    console.log(`📋 Academic period filtering: ${filteredRecordsCount}/${studentSnapshot.size} records included`);
+    console.log(`📚 Student subjects (academic period): ${Array.from(studentSubjects).join(', ')}`);
+    
+    if (studentSubjects.size === 0) {
+      console.log('⚠️ No subjects found in academic period');
+      window.subjectData = {};
+      window.overallTotalPeriods = 0;
+      window.overallPresentPeriods = 0;
+      updateCharts();
+      showLowAttendanceWarnings();
+      updateChartsVisibility();
+      return;
+    }
+    
+    // FAIR CALCULATION: For each subject, calculate total classes held vs student's attendance
+    const subjectData = {};
+    let overallTotalClasses = 0;
+    let overallPresentClasses = 0;
+    
+    for (const subject of studentSubjects) {
+      console.log(`📈 FAIR CALCULATION for subject: ${subject}`);
+      
+      // Step 1: Get ALL classes held for this subject (across all students) - FAIR DENOMINATOR
+      const allSubjectClassesQuery = await db.collection('attendances')
+        .where('subject', '==', subject)
+        .get();
+      
+      // Calculate total classes held for this subject by unique sessions
+      const subjectSessionPeriods = new Map();
+      allSubjectClassesQuery.forEach(doc => {
+        const data = doc.data();
+        if (data.date && data.date >= academicStartDate && data.date <= currentDate) {
+          const sessionId = data.sessionId || data.qrSessionId || `${data.date}_${data.subject}`;
+          if (sessionId && data.periods) {
+            subjectSessionPeriods.set(sessionId, data.periods);
+          }
+        }
+      });
+      
+      const subjectTotalClasses = Array.from(subjectSessionPeriods.values()).reduce((sum, periods) => sum + periods, 0);
+      console.log(`🎯 TOTAL CLASSES for ${subject}: ${subjectTotalClasses} (from ${subjectSessionPeriods.size} unique sessions)`);
+      
+      // Step 2: Get this student's present classes in the subject - FAIR NUMERATOR
+      const studentSubjectQuery = await db.collection('attendances')
+        .where('userId', '==', auth.currentUser.uid)
+        .where('subject', '==', subject)
+        .get();
+      
+      let subjectPresentClasses = 0;
+      studentSubjectQuery.forEach(doc => {
+        const data = doc.data();
+        if (data.date && data.date >= academicStartDate && data.date <= currentDate && data.status === 'present') {
+          const periods = data.periods || 1;
+          subjectPresentClasses += periods;
+        }
+      });
+      
+      console.log(`📈 STUDENT PRESENT for ${subject}: ${subjectPresentClasses} out of ${subjectTotalClasses}`);
+      
+      // Step 3: FAIR FORMULA - (student's present classes / total classes held for subject) * 100
+      const fairPercentage = subjectTotalClasses > 0 ? Math.round((subjectPresentClasses / subjectTotalClasses) * 100) : 0;
+      subjectData[subject] = fairPercentage;
+      
+      console.log(`🎯 FAIR PERCENTAGE for ${subject}: (${subjectPresentClasses}/${subjectTotalClasses}) * 100 = ${fairPercentage}%`);
+      
+      // Add to overall calculations
+      overallTotalClasses += subjectTotalClasses;
+      overallPresentClasses += subjectPresentClasses;
+    }
+    
+    // Calculate fair overall percentage
+    const overallFairPercentage = overallTotalClasses > 0 ? Math.round((overallPresentClasses / overallTotalClasses) * 100) : 0;
+    console.log(`🎯 FAIR OVERALL PERCENTAGE: (${overallPresentClasses}/${overallTotalClasses}) * 100 = ${overallFairPercentage}%`);
+    
+    // Update global variables with fair calculations
+    window.subjectData = subjectData;
+    window.overallTotalPeriods = overallTotalClasses;
+    window.overallPresentPeriods = overallPresentClasses;
+    
+    console.log(`⚖️ FAIR EVALUATION COMPLETE:`);
+    console.log(`  - Academic period: ${academicStartDate} to ${currentDate}`);
+    console.log(`  - Overall: ${overallPresentClasses}/${overallTotalClasses} = ${overallFairPercentage}%`);
+    console.log(`  - Subjects:`, Object.entries(subjectData).map(([s, p]) => `${s}: ${p}%`).join(', '));
+    
+    // Update UI
+    updateCharts();
+    showLowAttendanceWarnings();
+    updateChartsVisibility();
+    
+  } catch (error) {
+    console.error('❌ Error in fair attendance calculation:', error);
+    console.error('Error details:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    // FALLBACK: Try simple calculation if fair calculation fails
+    console.log('🔄 Attempting fallback calculation...');
+    try {
+      await fallbackAttendanceCalculation();
+    } catch (fallbackError) {
+      console.error('❌ Fallback calculation also failed:', fallbackError);
+      // Set empty data as last resort
+      window.subjectData = {};
+      window.overallTotalPeriods = 0;
+      window.overallPresentPeriods = 0;
+    }
+    
+    updateCharts();
+    showLowAttendanceWarnings();
+    updateChartsVisibility();
+  }
 }
 
-// Show low attendance warning if below 75% and data is available
+// Fallback calculation using simpler logic
+async function fallbackAttendanceCalculation() {
+  console.log('🔄 Running fallback attendance calculation...');
+  
+  const academicStartDate = '2025-09-16';
+  const currentDate = new Date().toISOString().split('T')[0];
+  
+  const studentSnapshot = await db.collection('attendances')
+    .where('userId', '==', auth.currentUser.uid)
+    .get();
+  
+  const subjectStats = {};
+  let totalPeriodsAll = 0;
+  let presentPeriodsAll = 0;
+  
+  studentSnapshot.forEach(doc => {
+    const data = doc.data();
+    if (data.date && data.date >= academicStartDate && data.date <= currentDate && data.subject) {
+      const periods = Math.max(1, Number(data.periods) || 1);
+      
+      if (!subjectStats[data.subject]) {
+        subjectStats[data.subject] = { totalPeriods: 0, presentPeriods: 0 };
+      }
+      
+      subjectStats[data.subject].totalPeriods += periods;
+      totalPeriodsAll += periods;
+      
+      if (data.status === 'present') {
+        subjectStats[data.subject].presentPeriods += periods;
+        presentPeriodsAll += periods;
+      }
+    }
+  });
+  
+  // Calculate simple percentages
+  const fallbackSubjectData = {};
+  Object.keys(subjectStats).forEach(subject => {
+    const stats = subjectStats[subject];
+    const percentage = stats.totalPeriods > 0 ? Math.round((stats.presentPeriods / stats.totalPeriods) * 100) : 0;
+    fallbackSubjectData[subject] = percentage;
+    console.log(`🔄 Fallback ${subject}: ${stats.presentPeriods}/${stats.totalPeriods} = ${percentage}%`);
+  });
+  
+  // Update global variables
+  window.subjectData = fallbackSubjectData;
+  window.overallTotalPeriods = totalPeriodsAll;
+  window.overallPresentPeriods = presentPeriodsAll;
+  
+  console.log('✅ Fallback calculation completed successfully');
+}
+
+// Make functions globally accessible for debugging
+window.debugFetchAttendanceData = fetchAttendanceData;
+window.debugFallbackCalculation = fallbackAttendanceCalculation;
+window.debugUpdateCharts = updateCharts;
+
+// Manual refresh function for debugging
+window.manualRefreshAttendance = async function() {
+  console.log('🔄 MANUAL REFRESH: Starting attendance data refresh...');
+  try {
+    await fetchAttendanceData();
+    console.log('✅ MANUAL REFRESH: Success!');
+  } catch (error) {
+    console.error('❌ MANUAL REFRESH: Failed:', error);
+    try {
+      await fallbackAttendanceCalculation();
+      updateCharts();
+      showLowAttendanceWarnings();
+      updateChartsVisibility();
+      console.log('✅ MANUAL REFRESH: Fallback completed!');
+    } catch (fallbackError) {
+      console.error('❌ MANUAL REFRESH: Even fallback failed:', fallbackError);
+    }
+  }
+};
+
+// Show low attendance warning if below 75% and data is available (uses academic period data)
 function showLowAttendanceWarnings() {
   // First, ensure there is data to process
+  // Note: subjectData is already filtered to academic period (Sep 16, 2025 onwards)
   if (!subjectData || Object.keys(subjectData).length === 0) {
     document.getElementById("lowAttendanceWarning").style.display = "none";
     return;
@@ -130,8 +331,9 @@ function updateCharts() {
     overallChart.destroy();
   }
 
+  const subjectData = window.subjectData || {};
   const hasSubjectData = Object.keys(subjectData).length > 0;
-  const hasOverallData = overallTotalPeriods > 0 || hasSubjectData; // allow overall even if subjectData empty
+  const hasOverallData = (window.overallTotalPeriods || 0) > 0 || hasSubjectData; // allow overall even if subjectData empty
 
   // Subject-wise chart (only if we have subject data)
   const subjectChartCanvas = document.getElementById("subjectChart");
@@ -178,8 +380,9 @@ function updateCharts() {
 
 // Update charts visibility based on data availability
 function updateChartsVisibility() {
+  const subjectData = window.subjectData || {};
   const hasSubjectData = Object.keys(subjectData).length > 0;
-  const hasOverallData = overallTotalPeriods > 0 || hasSubjectData;
+  const hasOverallData = (window.overallTotalPeriods || 0) > 0 || hasSubjectData;
   
   // Subject-wise chart section
   const subjectChartCanvas = document.getElementById("subjectChart");
@@ -341,13 +544,8 @@ function markTodayAttendance(classId, status) {
   // Update the display
   populateTodayClasses();
   
-  // Update overall attendance data
-  if (status === 'present' && subjectData[subject]) {
-    // Simulate slight increase in attendance percentage
-    subjectData[subject] = Math.min(100, subjectData[subject] + 1);
-    updateCharts();
-    showLowAttendanceWarnings();
-  }
+  // Note: We no longer manually update attendance data here
+  // The fair calculation system will handle this accurately when data is refreshed
   
   console.log(`Today's attendance marked: ${subject} - ${status}`);
 }
@@ -552,7 +750,7 @@ function checkYesterdayScrollability() {
 }
 
 // Update `onAuthStateChanged` to call the new function
-auth.onAuthStateChanged(async user => {
+auth.onAuthStateChanged(async (user) => {
   if (user) {
     console.log('User authenticated:', user.email);
     
@@ -575,11 +773,31 @@ auth.onAuthStateChanged(async user => {
     }
     
     // Load dashboard data for existing users
-    loadUserProfile(user);
-    fetchTodayAttendance(user); // Fetch today's attendance
-    fetchYesterdayAttendance(user); // Fetch yesterday's attendance
-    fetchAttendanceData(); // Fetch all attendance data for charts and warnings
-    fetchNotificationsFromServer(); // Fetch real notifications from Firebase
+    console.log('🚀 Loading dashboard data for authenticated user...');
+    
+    try {
+      loadUserProfile(user);
+      fetchTodayAttendance(user); // Fetch today's attendance
+      fetchYesterdayAttendance(user); // Fetch yesterday's attendance
+      
+      console.log('📋 About to call fetchAttendanceData...');
+      await fetchAttendanceData(); // Fetch all attendance data for charts and warnings (now async)
+      console.log('✅ fetchAttendanceData completed');
+      
+      fetchNotificationsFromServer(); // Fetch real notifications from Firebase
+      
+    } catch (error) {
+      console.error('❌ Error loading dashboard data:', error);
+      // Try fallback even if main loading fails
+      try {
+        await fallbackAttendanceCalculation();
+        updateCharts();
+        showLowAttendanceWarnings();
+        updateChartsVisibility();
+      } catch (fallbackError) {
+        console.error('❌ Even fallback failed:', fallbackError);
+      }
+    }
   } else {
     window.location.href = 'index.html';
   }
@@ -1543,13 +1761,19 @@ function updateWelcomeMessage(studentName, regNumber = null) {
   }
 }
 
-// Calculate overall attendance percentage
+// Calculate overall attendance percentage (uses academically filtered data from Sep 16, 2025)
 function calculateOverallAttendance() {
   // Prefer weighted computation by periods if we have it
-  if (overallTotalPeriods > 0) {
-    return Math.round((overallPresentPeriods / overallTotalPeriods) * 100);
+  // Note: overallTotalPeriods and overallPresentPeriods are already filtered by fetchAttendanceData()
+  const totalPeriods = window.overallTotalPeriods || 0;
+  const presentPeriods = window.overallPresentPeriods || 0;
+  
+  if (totalPeriods > 0) {
+    return Math.round((presentPeriods / totalPeriods) * 100);
   }
+  
   // Fallback to simple average of subject percentages
+  const subjectData = window.subjectData || {};
   const attendanceValues = Object.values(subjectData);
   if (attendanceValues.length === 0) return 0;
   const total = attendanceValues.reduce((sum, val) => sum + val, 0);
@@ -1558,6 +1782,7 @@ function calculateOverallAttendance() {
 
 // Count subjects with low attendance (below 75%)
 function countLowAttendanceSubjects() {
+  const subjectData = window.subjectData || {};
   return Object.values(subjectData).filter(percentage => percentage < 75).length;
 }
 
@@ -1625,7 +1850,7 @@ function downloadReport() {
       const reportData = {
         studentName: JSON.parse(localStorage.getItem('studentProfile') || '{}').fullName || 'Student',
         overallAttendance: `${overallAttendance}%`,
-        subjects: subjectData,
+        subjects: window.subjectData || {},
         todayStatus: todayAttendanceStatus,
         generatedOn: typeof formatISTDateTime === 'function' ? formatISTDateTime(new Date()) : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
       };
@@ -2179,16 +2404,11 @@ async function markAttendance(qrData) {
       'Just now'
     );
     
-    // Update local attendance data (simulate increase)
-    if (subjectData[qrData.subject]) {
-      subjectData[qrData.subject] = Math.min(100, subjectData[qrData.subject] + 2);
-      updateCharts();
-      showLowAttendanceWarnings();
-    }
-    
-    // Refresh today's attendance display
+    // Refresh all attendance data with fair calculation (instead of manual simulation)
     if (auth.currentUser) {
       fetchTodayAttendance(auth.currentUser);
+      // Trigger fair calculation refresh to get accurate percentages
+      await fetchAttendanceData();
     }
     
   } catch (error) {
