@@ -10,9 +10,9 @@ Last Updated: 2024
 
 /* ===== RESET AND BASE STYLES ===== */
 :root {
-  --color-primary: #0A3D62; /* Deep Blue */
-  --color-success: #2ECC71; /* Success Green */
-  --color-text: #2C3E50;    /* Dark Text */
+  --color-primary: #000000; /* Deep Blue */
+  --color-success: #000000; /* Success Green */
+  --color-text: #000000;    /* Dark Text */
   --color-bg-secondary: #F0F3F4; /* Light Gray */
   --color-white: #FFFFFF;   /* Pure White */
   --color-border: #D6DBDF;  /* Subtle border derived from light gray */
@@ -26,7 +26,7 @@ Last Updated: 2024
 }
 
 body {
-  background: linear-gradient(135deg, var(--color-primary), #06283D);
+  background: linear-gradient(135deg, var(--color-primary), #000000);
   color: var(--color-text);
   padding: 20px;
 }
@@ -116,8 +116,8 @@ canvas {
 .leave-form select:focus,
 .leave-form textarea:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  border-color: #000000;
+  box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.25);
 }
 
 .leave-form button {
@@ -131,7 +131,7 @@ canvas {
 }
 
 .leave-form button:hover {
-  background: linear-gradient(to right, #0056b3, #004085);
+  background: linear-gradient(to right, #000000, #000000);
   transform: translateY(-1px);
 }
 
@@ -154,17 +154,17 @@ canvas {
 .welcome-message:hover {
   background: linear-gradient(135deg, #bbdefb, #e3f2fd);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .welcome-message i {
-  color: #007bff;
+  color: #000000;
   font-size: 16px;
 }
 
 #studentName {
   font-weight: 600;
-  color: #0056b3;
+  color: #000000;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -213,7 +213,7 @@ canvas {
 
 .spinner {
   border: 3px solid #e9ecef;
-  border-top: 3px solid #007bff;
+  border-top: 3px solid #000000;
   border-radius: 50%;
   width: 30px;
   height: 30px;
@@ -256,13 +256,13 @@ canvas {
 }
 
 #yesterdayList::-webkit-scrollbar-thumb {
-  background: #007bff;
+  background: #000000;
   border-radius: 4px;
   transition: background 0.3s ease;
 }
 
 #yesterdayList::-webkit-scrollbar-thumb:hover {
-  background: #0056b3;
+  background: #000000;
 }
 
 /* Fade effect at the bottom to indicate more content */
@@ -718,7 +718,7 @@ canvas {
 }
 
 .scanner-btn {
-  background: linear-gradient(135deg, var(--color-success), #27AE60);
+  background: linear-gradient(135deg, var(--color-success), #000000);
   color: var(--color-white);
   border: none;
   padding: 15px 30px;
@@ -930,9 +930,9 @@ canvas {
 }
 
 .capture-btn {
-  background: linear-gradient(135deg, #28a745, #20c997);
+  background: linear-gradient(135deg, #000000, #000000);
   color: white;
-  box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .capture-btn:hover {

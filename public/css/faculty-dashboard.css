@@ -4,17 +4,17 @@
    Applies to faculty dashboard only
    ===================================== */
 :root {
-  --color-primary: #0A3D62; /* Deep Blue */
-  --color-success: #2ECC71; /* Success Green */
-  --color-text: #2C3E50;    /* Dark Text */
+  --color-primary: #000000; /* Deep Blue */
+  --color-success: #000000; /* Success Green */
+  --color-text: #000000;    /* Dark Text */
   --color-bg-secondary: #F0F3F4; /* Light Gray */
   --color-white: #FFFFFF;   /* Pure White */
-  --color-border: #D6DBDF;  /* Subtle border */
+  --color-border: #b5ddff;  /* Subtle border */
 }
 
 /* Base */
 body.faculty-dashboard, body[data-page="faculty-dashboard"] , body {
-  background: linear-gradient(135deg, var(--color-primary), #06283D);
+  background: linear-gradient(135deg, var(--color-primary), #000000);
   color: var(--color-white);
 }
 
@@ -32,14 +32,14 @@ h1, h2, .title, .section h2 {
 
 /* Buttons primary/success */
 button, .btn, .btn-primary {
-  background: linear-gradient(135deg, var(--color-success), #27AE60) !important;
+  background: linear-gradient(135deg, var(--color-success), #000000) !important;
   color: var(--color-white) !important;
   border: none !important;
 }
 
 /* Info/quick actions */
 .quick-action-btn, .action-btn {
-  background: linear-gradient(45deg, var(--color-primary), #06283D) !important;
+  background: linear-gradient(45deg, var(--color-primary), #000000) !important;
   color: var(--color-white) !important;
 }
 
@@ -62,8 +62,8 @@ FACULTY DASHBOARD CSS STYLESHEET
 
 /* ===== BASE STYLES ===== */
 :root {
-    --primary-color: #007bff;
-    --primary-hover: #0056b3;
+    --primary-color: #000000;
+    --primary-hover: #000000;
     --success-color: #28a745;
     --success-hover: #218838;
     --danger-color: #dc3545;
@@ -427,7 +427,7 @@ label {
 .approve-btn:hover { 
     background: var(--success-hover);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .reject-btn { 
@@ -567,7 +567,7 @@ label {
 }
 
 .profile-content button[type="submit"]:hover {
-    background: #218838 !important;
+    background: #000000 !important;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
 }
@@ -770,7 +770,7 @@ label {
 }
 
 .faculty-welcome h4 {
-    color: var(--success-color);
+    color: black;
     margin-bottom: 8px;
     /* font-size: 2rem; */
     font-weight: 600;
@@ -781,7 +781,7 @@ label {
 
 .faculty-welcome h4 i {
    
-    color: var(--success-color);
+    color:black;
 }
 
 .faculty-welcome p {

@@ -3592,8 +3592,8 @@ async function loadPendingPhotosForVerification() {
         photosGrid.innerHTML = '<div style="text-align: center; padding: 40px; grid-column: 1 / -1;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px;"></i><p>Loading photos...</p></div>';
         noPhotosMessage.style.display = 'none';
         
-        // Get today's date for filtering
-        const today = new Date().toISOString().split('T')[0];
+        // Get today's date for filtering (use IST to match student submission date)
+        const today = getISTDateString();
         
         // Query for temp photos from the current session
         // Simplified query to avoid composite index requirement
@@ -3818,25 +3818,16 @@ function createPhotoAttendanceCard(photo, index) {
             ${photoMethod === 'firestore_fallback' ? '<div style="position: absolute; bottom: 5px; left: 5px; background: rgba(255,193,7,0.9); color: #000; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: bold;">COMPRESSED</div>' : ''}
         </div>
         
-        <div class="student-info" style="margin-bottom: 12px; font-size: 14px;">
-            <div style="font-weight: 600; margin-bottom: 5px; color: #333;">${photo.studentName}</div>
-            <div style="color: #666; font-size: 13px;">${photo.regNumber}</div>
-            <div style="color: #888; font-size: 11px;">${photo.studentEmail}</div>
-            <div style="color: #999; font-size: 10px; margin-top: 5px;">
-                Submitted: ${formatDateTime(photo.timestamp)}${compressionInfo}
-            </div>
-            <div style="color: #aaa; font-size: 9px; margin-top: 3px;">
-                Method: ${photoMethod === 'firebase_storage' ? '🔥 Firebase Storage' : '📦 Compressed (Fallback)'}
-            </div>
+        <div class="student-info" style="margin: 12px; font-size: 14px;">
+            <span style="font-weight: 600; margin-bottom: 5px; color: #333;">${photo.studentName}</span>
+            <span style="color: #666; font-size: 13px;">${photo.regNumber}</span>
+
         </div>
         
         <div class="attendance-status" style="padding: 8px; border-radius: 6px; font-weight: 600; font-size: 13px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb;">
             <i class="fas fa-check-circle"></i> MARKED PRESENT
         </div>
         
-        <div style="margin-top: 8px; font-size: 11px; color: #999; font-style: italic;">
-            Click card to mark absent • Click photo to view full-screen
-        </div>
     `;
     
     return card;
@@ -4334,6 +4325,20 @@ function formatDateTime(value) {
     } catch (error) {
         return '';
     }
+}
+
+// Helper: get YYYY-MM-DD in Asia/Kolkata to match student submissions
+function getISTDateString(d = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(d);
+    const y = parts.find(p => p.type === 'year').value;
+    const m = parts.find(p => p.type === 'month').value;
+    const day = parts.find(p => p.type === 'day').value;
+    return `${y}-${m}-${day}`;
 }
 
 
