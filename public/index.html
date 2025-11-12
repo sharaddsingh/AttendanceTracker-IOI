@@ -462,13 +462,13 @@ form {
     const user = result.user;
     const email = user.email;
 
-    const studentRegex = /@pwioi\.com$/i;
+    const studentRegex = /@gmail\.com$/i;
     const facultyRegex = /@gmail\.com$/i;
     const validStudent = studentRegex.test(email);
     const validFaculty = facultyRegex.test(email);
 
     if ((role === "student" && !validStudent) || (role === "faculty" && !validFaculty)) {
-      alert(`Only ${role === "student" ? "@pwioi.com" : "@gmail.com"} emails allowed for ${role}s.`);
+      alert(`Only ${role === "student" ? "@gmail.com" : "@gmail.com"} emails allowed for ${role}s.`);
       await auth.signOut();
       return;
     }
